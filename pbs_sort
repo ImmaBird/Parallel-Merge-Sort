@@ -1,0 +1,11 @@
+#!/bin/bash
+#PBS -l nodes=19:ppn=12
+#PBS -l walltime=00:20:00
+#PBS -q batch
+#PBS -N matrixMultiplication
+#PBS -j oe
+
+cd /home/rawsonb/LE2
+for i in `seq 1 15`; do
+    mpiexec -np $ --map-by ppr:1:node --hostfile $PBS_NODEFILE ./matmult.cx 2000
+done
