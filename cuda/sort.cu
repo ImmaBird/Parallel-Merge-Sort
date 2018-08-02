@@ -3,7 +3,7 @@
 #include <time.h>
 #include "sort.cuh"
 
-#define SIZE 134217728
+#define SIZE 524288
 #define THREADS_PER_BLOCK 512
 
 #define STARTRANGE 0
@@ -11,6 +11,9 @@
 
 int main()
 {
+    // TODO: Breaks if using any array size that isn't a power of 2
+    // TODO: Also breaks if using an array size that is a power of 2 >= 2^20 :)
+    // TODO: Make the above two todos not happen
     srand(time(0));
 
     int *data;
@@ -29,6 +32,13 @@ int main()
 
     //printf("\nResult: ");
     //printArray(data, SIZE);
+
+    for (int i = 1; i < SIZE; i++) {
+        if (data[i] < data[i-1]) {
+            printf("Broken :(\n");
+            break;
+        }
+    }
 
     // Cleanup
     free(data);
@@ -58,6 +68,7 @@ void mergeSort(int *array, int arraySize)
     while(chunkSize <= arraySize)
     {
         gpu_merge<<<blocks, THREADS_PER_BLOCK>>>(d_array, d_temp_data, arraySize, chunkSize);
+        // TODO: Make chunkSize math not terrible
         if (chunkSize == arraySize) break;
         chunkSize *= 2;
         if (chunkSize > arraySize) chunkSize = arraySize;
@@ -77,7 +88,7 @@ __global__ void gpu_mergeSort(int *d_array, int arraySize, int chunkSize)
     int l = (threadIdx.x + blockDim.x * blockIdx.x) * chunkSize;
     if (l >= arraySize) return;
     int r = l + chunkSize;
-    if (r >= arraySize) r = arraySize - 1;
+    if (r > arraySize) r = arraySize;
 
     insertionSort(d_array, l, r);
 }
