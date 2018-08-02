@@ -109,9 +109,8 @@ void recMergeSort(int *mergeBuffer, int *input, int a, int b)
         }
 
         // copy the sorted range back over to the input array for the next merge
-        input += a;  // move pointers forward to a, then copy b-a elements from there
-        mergeBuffer += a;
-        memcpy(input, mergeBuffer, size*sizeof(int));
+        // memcpy size elements start from a
+        memcpy(input+a, mergeBuffer+a, size*sizeof(int));
     }
     else
     {
