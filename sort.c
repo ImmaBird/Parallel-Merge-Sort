@@ -7,13 +7,13 @@
 void mergeSort(int *input, int size);
 void recMergeSort(int *mergeBuffer, int *input, int a, int b);
 void selectionSort(int *array, int size);
-void insertionSort(int *array, int a, int b);
+void insertionSort(int *input, int a, int b);
 void printArray(int *array, int size);
 int *getRandomArray(int size);
 int randInt(int a, int b);
 
 // the size of the array to sort
-int arrayLength = 16000000;
+int arrayLength = 10;
 
 // the range of numbers in the array
 int startRange = 0;
@@ -27,14 +27,16 @@ int main(int argc, char *argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &numranks);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    int *numbers = getRandomArray(arrayLength);
-    // printArray(numbers, arrayLength);
+    if (rank == 0)
+    {
+        int *testArray = getRandomArray(arrayLength);
+    }
+    MPI_Bcast();
+    
 
     double start = MPI_Wtime();
-    mergeSort(numbers, arrayLength);
+    mergeSort(testArray, arrayLength);
     printf("Ran in %.12f seconds.\n", MPI_Wtime() - start);
-
-    // printArray(numbers, arrayLength);
 
     MPI_Finalize();
 }
@@ -48,14 +50,8 @@ void mergeSort(int *input, int size)
 
 void recMergeSort(int *mergeBuffer, int *input, int a, int b)
 {
-    // printf("Start a:%d b:%d size:%d\n", a, b, b - a);
-    // printf("array: ");
-    // printArray(array, arrayLength);
-    // printf("ans:   ");
-    // printArray(ans, arrayLength);
-    // fflush(stdout);
     int size = b - a; // the number of elements within this range
-    if (size > 3)
+    if (size > 16)
     {
         // halve
         int m = size / 2 + a; // the midpoint of the range the larger half goes to the right half
@@ -117,12 +113,33 @@ void recMergeSort(int *mergeBuffer, int *input, int a, int b)
     {
         insertionSort(input, a, b);
     }
-    // printf("End a:%d b:%d size:%d\n", a, b, b - a);
-    // printf("array: ");
-    // printArray(array, arrayLength);
-    // printf("ans:   ");
-    // printArray(ans, arrayLength);
-    // fflush(stdout);
+}
+
+void insertionSort(int *input, int a, int b)
+{
+    int current, i, j; 
+    // loop over the range
+    for (i = a + 1; i < b; i++)
+    {
+        current = input[i]; // the value to insert
+        // loop back from the current value
+        for (j = i - 1; j >= a - 1; j--)
+        {
+            // if the current value is greater than the value being checked...
+            if (j == a - 1 || current > input[j])
+            {
+                // insert it in front of that value
+                input[j + 1] = current;
+                break;
+            }
+            else
+            {
+                // if its less than the value being checked
+                // shift the value up the array to make room for the current value
+                input[j + 1] = input[j];
+            }
+        }
+    }
 }
 
 void selectionSort(int *array, int size)
@@ -141,27 +158,6 @@ void selectionSort(int *array, int size)
         }
         array[index] = array[i];
         array[i] = smallest;
-    }
-}
-
-void insertionSort(int *array, int a, int b)
-{
-    int current;
-    for (int i = a + 1; i < b; i++)
-    {
-        current = array[i];
-        for (int j = i - 1; j >= a - 1; j--)
-        {
-            if (j == a - 1 || current > array[j])
-            {
-                array[j + 1] = current;
-                break;
-            }
-            else
-            {
-                array[j + 1] = array[j];
-            }
-        }
     }
 }
 
