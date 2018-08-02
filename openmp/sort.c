@@ -43,8 +43,13 @@ int main(int argc, char *argv[])
     start = clock();
     mergeSort(testArray, arrayLength);
     stop = clock();
+
+    int num_threads;
+    #pragma omp parallel
+    #pragma omp single
+    num_threads = omp_get_num_threads();
     double duration = ((double)stop - start) / CLOCKS_PER_SEC;
-    printf("Ran in %.12f seconds.\n", duration);
+    printf("Threads: %d, Ran in %.4f seconds.\n", num_threads, duration);
     if (arrayLength <= 20)
         printArray(testArray, arrayLength);
 
@@ -75,11 +80,17 @@ void mergeSort(int *input, int size)
             int myEnd = myStart + chunkSize;
             if (myEnd > size)
                 myEnd = size;
-            // printf("Thread: %d myStart: %d myEnd: %d\n", threadId, myStart, myEnd);
 
+            clock_t start, stop;
+            double duration;
+
+            printf("thread: %d myStart: %d myEnd: %d\n", threadId, myStart, myEnd);
+            
+            start = clock();
             recMergeSort(mergeBuffer, input, myStart, myEnd);
-            // if(isSortedArray(input, myStart, myEnd) == 1)
-            //     printf("Thread: %d Broken :(\n", threadId);
+            stop = clock();
+            duration = ((double)stop - start) / CLOCKS_PER_SEC;
+            printf("Thread: %d, Ran in %.4f seconds.\n", threadId, duration);
 
             #pragma omp barrier
             #pragma omp single
@@ -94,7 +105,7 @@ void mergeSort(int *input, int size)
                         int startRight = (taskEnd - taskStart) / 2 + taskStart;
                         if (taskEnd > size)
                             taskEnd = size;
-                        // printf("taskStart: %d taskEnd: %d startL: %d startR: %d\n", taskStart, taskEnd, taskStart, startRight);
+
                         #pragma omp task
                         merge(mergeBuffer, input, taskStart, taskEnd, taskStart, startRight);
                     }

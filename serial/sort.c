@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
     mergeSort(testArray, arrayLength);
     stop = clock();
     double duration = ((double)stop-start)/CLOCKS_PER_SEC;
-    printf("Ran in %.12f seconds.\n", duration);
+    printf("Ran in %.4f seconds.\n", duration);
     if(arrayLength < 20) printArray(testArray, arrayLength);
     if(isSortedArray(testArray, 0, arrayLength) == 1)
         printf("Broken :(\n");

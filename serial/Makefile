@@ -3,6 +3,8 @@ LDC = gcc #linker
 CPROGS = sort.cx
 FLAGS =
 
+export TAU_MAKEFILE=/opt/sw/tau/x86_64/lib/Makefile.tau-pdt-openmp-opari
+
 all: $(CPROGS)
 
 %.cx:%.o
@@ -16,4 +18,4 @@ clean:
 
 docker-run:
 	docker build -t parallel-sort-serial:latest .
-	docker run --rm parallel-sort-serial:latest 200000000 0 100
+	docker run --rm parallel-sort-serial:latest 16000000 0 100
