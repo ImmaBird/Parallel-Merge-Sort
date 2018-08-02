@@ -12,6 +12,7 @@ all: $(CPROGS)
 
 run: all
 	./$(CPROGS)
+	make clean
 
 sort.cx:sort.o
 	$(LDC) $(LD_FLAGS) $< -o $@
