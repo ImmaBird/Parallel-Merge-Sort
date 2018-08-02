@@ -2,6 +2,7 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 void mergeSort(int *input, int size);
@@ -104,10 +105,9 @@ void recMergeSort(int *mergeBuffer, int *input, int a, int b)
         }
 
         // copy the sorted range back over to the input array for the next merge
-        for (int i = a; i < b; i++)
-        {
-            input[i] = mergeBuffer[i];
-        }
+        input += a;  // move pointers forward to a, then copy b-a elements from there
+        mergeBuffer += a;
+        memcpy(input, mergeBuffer, size*sizeof(int));
     }
     else
     {
