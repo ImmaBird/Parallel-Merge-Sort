@@ -2,8 +2,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "omp.h"
 
 void mergeSort(int *input, int size);
+void merge(int *mergeBuffer, int *input, int a, int b, int startLeft, int startRight);
 void recMergeSort(int *mergeBuffer, int *input, int a, int b);
 void selectionSort(int *array, int size);
 void insertionSort(int *input, int a, int b);
@@ -41,10 +43,12 @@ int main(int argc, char *argv[])
     start = clock();
     mergeSort(testArray, arrayLength);
     stop = clock();
-    double duration = ((double)stop-start)/CLOCKS_PER_SEC;
+    double duration = ((double)stop - start) / CLOCKS_PER_SEC;
     printf("Ran in %.12f seconds.\n", duration);
-    if(arrayLength < 20) printArray(testArray, arrayLength);
-    if(isSortedArray(testArray, 0, arrayLength) == 1)
+    if (arrayLength <= 20)
+        printArray(testArray, arrayLength);
+
+    if (isSortedArray(testArray, 0, arrayLength) == 1)
         printf("Broken :(\n");
 
     free(testArray);
@@ -53,7 +57,54 @@ int main(int argc, char *argv[])
 void mergeSort(int *input, int size)
 {
     int *mergeBuffer = (int *)malloc(size * sizeof(int));
-    recMergeSort(mergeBuffer, input, 0, size);
+    #pragma omp parallel
+    {
+        int threadId = omp_get_thread_num();
+        int numThreads = omp_get_num_threads();
+        int chunks = numThreads;
+
+        if (size / chunks == 0) // Not everyone gets a chunk
+        {
+            #pragma omp single
+            recMergeSort(mergeBuffer, input, 0, size);
+        }
+        else
+        {
+            int chunkSize = size / chunks + 1;
+            int myStart = threadId * chunkSize;
+            int myEnd = myStart + chunkSize;
+            if (myEnd > size)
+                myEnd = size;
+            // printf("Thread: %d myStart: %d myEnd: %d\n", threadId, myStart, myEnd);
+
+            recMergeSort(mergeBuffer, input, myStart, myEnd);
+            // if(isSortedArray(input, myStart, myEnd) == 1)
+            //     printf("Thread: %d Broken :(\n", threadId);
+
+            #pragma omp barrier
+            #pragma omp single
+            {
+                while (chunks > 1)
+                {
+                    int merges = chunks / 2;
+                    for (int i = 0; i < merges; i++)
+                    {
+                        int taskStart = i * chunkSize * 2;
+                        int taskEnd = taskStart + chunkSize * 2;
+                        int startRight = (taskEnd - taskStart) / 2 + taskStart;
+                        if (taskEnd > size)
+                            taskEnd = size;
+                        // printf("taskStart: %d taskEnd: %d startL: %d startR: %d\n", taskStart, taskEnd, taskStart, startRight);
+                        #pragma omp task
+                        merge(mergeBuffer, input, taskStart, taskEnd, taskStart, startRight);
+                    }
+                    chunks = (chunks / 2) + (chunks % 2);
+                    chunkSize *= 2;
+                    #pragma omp taskwait
+                }
+            }
+        }
+    }
     free(mergeBuffer);
 }
 
@@ -70,56 +121,64 @@ void recMergeSort(int *mergeBuffer, int *input, int a, int b)
         // merge
         int l = a; // left begining index
         int r = m; // right begining index
-
-        // loop over the range
-        for (int i = a; i < b; i++)
-        {
-            if (input[l] < input[r])
-            {
-                // if left is smaller...
-                mergeBuffer[i] = input[l];
-                l++;
-                if (l == m)
-                {
-                    // the left half is empty
-                    while (r < b)
-                    {
-                        // copy the rest of the left half to the end
-                        i++;
-                        mergeBuffer[i] = input[r];
-                        r++;
-                    }
-                    break;
-                }
-            }
-            else
-            {
-                // if right is smaller...
-                mergeBuffer[i] = input[r];
-                r++;
-                if (r == b)
-                {
-                    // the right half is empty
-                    while (l < m)
-                    {
-                        // copy the rest of the right half to the end
-                        i++;
-                        mergeBuffer[i] = input[l];
-                        l++;
-                    }
-                    break;
-                }
-            }
-        }
-
-        // copy the sorted range back over to the input array for the next merge
-        // memcpy size elements start from a
-        memcpy(input + a, mergeBuffer + a, size * sizeof(int));
+        merge(mergeBuffer, input, a, b, l, r);
     }
     else
     {
         insertionSort(input, a, b);
     }
+}
+
+void merge(int *mergeBuffer, int *input, int a, int b, int startLeft, int startRight)
+{
+    int l = startLeft;
+    int r = startRight;
+
+    // loop over the range
+    for (int i = a; i < b; i++)
+    {
+        if (input[l] < input[r])
+        {
+            // if left is smaller...
+            mergeBuffer[i] = input[l];
+            l++;
+            if (l == startRight)
+            {
+                // the left half is empty
+                while (r < b)
+                {
+                    // copy the rest of the right half to the end
+                    i++;
+                    mergeBuffer[i] = input[r];
+                    r++;
+                }
+                break;
+            }
+        }
+        else
+        {
+            // if right is smaller...
+            mergeBuffer[i] = input[r];
+            r++;
+            if (r == b)
+            {
+                // the right half is empty
+                while (l < startRight)
+                {
+                    // copy the rest of the left half to the end
+                    i++;
+                    mergeBuffer[i] = input[l];
+                    l++;
+                }
+                break;
+            }
+        }
+    }
+
+    // copy the sorted range back over to the input array for the next merge
+    // memcpy size elements start from a
+    int size = b - a;
+    memcpy(input + a, mergeBuffer + a, size * sizeof(int));
 }
 
 // sorts the values of an array within a range [a,b)

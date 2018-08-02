@@ -1,7 +1,7 @@
 CC = gcc #compiler
 LDC = gcc #linker
 CPROGS = sort.cx
-FLAGS =
+FLAGS = -fopenmp
 
 all: $(CPROGS)
 
@@ -15,5 +15,5 @@ clean:
 	rm -rf *.o *.cx
 
 docker-run:
-	docker build -t parallel-sort-serial:latest .
-	docker run --rm parallel-sort-serial:latest 200000000 0 100
+	docker build -t parallel-sort-openmp:latest .
+	docker run --rm parallel-sort-openmp:latest 200000000 0 100
