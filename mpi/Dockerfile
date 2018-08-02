@@ -1,6 +1,6 @@
 FROM nlknguyen/alpine-mpich
 
-COPY makefile ./
+COPY Makefile ./
 COPY sort.c ./
 
 RUN make
