@@ -1,13 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include "sort.cuh"
 
-// __global__ void add(int* a, int* b, int* c, int n) {
-//     int index = threadIdx.x + blockIdx.x * blockDim.x;
-//     if (index < n) c[index] = a[index] + b[index];
-// }
-
-#define SIZE 10
+#define SIZE 134217728
 #define THREADS_PER_BLOCK 512
 
 #define STARTRANGE 0
@@ -20,12 +16,19 @@ int main()
     int *data;
 
     data = getRandomArray(SIZE);
-    printArray(data, SIZE);
+    //printArray(data, SIZE);
 
+    clock_t start, stop;
+    start = clock();
     mergeSort(data, SIZE);
+    stop = clock();
 
-    printf("\nResult: ");
-    printArray(data, SIZE);
+    printf("\n\n");
+    double elapsed = ((double) (stop - start)) / CLOCKS_PER_SEC;
+    printf("Elapsed time: %.3fs\n", elapsed);
+
+    //printf("\nResult: ");
+    //printArray(data, SIZE);
 
     // Cleanup
     free(data);
@@ -40,8 +43,6 @@ void mergeSort(int *array, int arraySize)
     cudaMalloc((void **)&d_array, arraySize*sizeof(int));
     cudaMemcpy(d_array, array, arraySize*sizeof(int), cudaMemcpyHostToDevice);
 
-    printGPUArray<<<1, 1>>>(d_array, arraySize);
-
     int chunkSize = 2;
     int chunks = arraySize / chunkSize;
     
@@ -49,7 +50,6 @@ void mergeSort(int *array, int arraySize)
 
     gpu_mergeSort<<<blocks, THREADS_PER_BLOCK>>>(d_array, arraySize, chunkSize);
     cudaDeviceSynchronize();
-    printGPUArray<<<1, 1>>>(d_array, arraySize);
 
     // Make temp array for the merge
     int* d_temp_data;
@@ -94,15 +94,15 @@ __global__ void gpu_merge(int *d_array, int *d_temp_array, int arraySize, int ch
     int m = (r - l) / 2 + l;
     int cur_r = m;
 
-    if (threadIdx.x == 0)
-    {
-        printf("(Before) Block: %d l: %d r: %d m: %d\n", blockIdx.x, l, r, m);
-        for (int i = l; i < r; i++)
-        {
-            printf("%d ", d_array[i]);
-        }
-        printf("\n");
-    }
+    // if (threadIdx.x == 0)
+    // {
+    //     printf("(Before) Block: %d l: %d r: %d m: %d\n", blockIdx.x, l, r, m);
+    //     for (int i = l; i < r; i++)
+    //     {
+    //         printf("%d ", d_array[i]);
+    //     }
+    //     printf("\n");
+    // }
 
     for (int i = l; i < r; i++)
     {
@@ -122,15 +122,15 @@ __global__ void gpu_merge(int *d_array, int *d_temp_array, int arraySize, int ch
 
     memcpy(d_array+l, d_temp_array+l, chunkSize*sizeof(int));
 
-    if (threadIdx.x == 0)
-    {
-        printf("(After) Block: %d l: %d r: %d\n", blockIdx.x, l, r);
-        for (int i = l; i < r; i++)
-        {
-            printf("%d ", d_array[i]);
-        }
-        printf("\n");
-    }
+    // if (threadIdx.x == 0)
+    // {
+    //     printf("(After) Block: %d l: %d r: %d\n", blockIdx.x, l, r);
+    //     for (int i = l; i < r; i++)
+    //     {
+    //         printf("%d ", d_array[i]);
+    //     }
+    //     printf("\n");
+    // }
 }
 
 __device__ void insertionSort(int *array, int a, int b)
