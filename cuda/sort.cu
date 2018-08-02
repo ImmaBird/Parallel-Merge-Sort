@@ -24,6 +24,7 @@ int main()
 
     mergeSort(data, SIZE);
 
+    printf("\nResult: ");
     printArray(data, SIZE);
 
     // Cleanup
@@ -54,10 +55,12 @@ void mergeSort(int *array, int arraySize)
     int* d_temp_data;
     cudaMalloc((void **)&d_temp_data, arraySize);
     chunkSize *= 2;
-    while(chunkSize < arraySize)
+    while(chunkSize <= arraySize)
     {
         gpu_merge<<<blocks, THREADS_PER_BLOCK>>>(d_array, d_temp_data, arraySize, chunkSize);
+        if (chunkSize == arraySize) break;
         chunkSize *= 2;
+        if (chunkSize > arraySize) chunkSize = arraySize;
         chunks = arraySize / chunkSize;
         blocks = chunks / THREADS_PER_BLOCK + 1;
         cudaDeviceSynchronize();
@@ -85,32 +88,33 @@ __global__ void gpu_merge(int *d_array, int *d_temp_array, int arraySize, int ch
     int l = (threadIdx.x + blockDim.x * blockIdx.x) * chunkSize;
     if (l >= arraySize) return;
     int r = l + chunkSize;
-    if (r >= arraySize) r = arraySize - 1;
+    if (r > arraySize) r = arraySize;
+
+    int cur_l = l;
+    int m = (r - l) / 2 + l;
+    int cur_r = m;
 
     if (threadIdx.x == 0)
     {
-        printf("(Before) Block: %d l: %d r: %d\n", blockIdx.x, l, r);
+        printf("(Before) Block: %d l: %d r: %d m: %d\n", blockIdx.x, l, r, m);
         for (int i = l; i < r; i++)
         {
-            printf("%d ", d_temp_array[i]);
+            printf("%d ", d_array[i]);
         }
         printf("\n");
     }
 
-    int cur_l = l;
-    int m = (l + chunkSize) / 2;
-    int cur_r = m;
-    for (int i = l; i < r; i++) 
+    for (int i = l; i < r; i++)
     {
-        if (cur_r >= r || (cur_l < m && d_array[cur_l] > d_array[cur_r]))
+        if (cur_r >= r || (cur_l < m && d_array[cur_l] < d_array[cur_r]))
         {
-            // left bigger than right
+            // left less than right
             d_temp_array[i] = d_array[cur_l];
             cur_l++;
         }
         else
         {
-            // right bigger than left
+            // right less than left
             d_temp_array[i] = d_array[cur_r];
             cur_r++;
         }     
@@ -120,15 +124,10 @@ __global__ void gpu_merge(int *d_array, int *d_temp_array, int arraySize, int ch
 
     if (threadIdx.x == 0)
     {
-        printf("(After) Block: %d\n", blockIdx.x);
+        printf("(After) Block: %d l: %d r: %d\n", blockIdx.x, l, r);
         for (int i = l; i < r; i++)
         {
-            printf("%d ", d_temp_array[i]);
-        }
-        printf("\n");
-        for (int i = l; i < r; i++)
-        {
-            printf("%d ", d_temp_array[i]);
+            printf("%d ", d_array[i]);
         }
         printf("\n");
     }
