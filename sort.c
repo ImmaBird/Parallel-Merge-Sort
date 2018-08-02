@@ -10,29 +10,99 @@ void recMergeSort(int *mergeBuffer, int *input, int a, int b);
 void selectionSort(int *array, int size);
 void insertionSort(int *input, int a, int b);
 void printArray(int *array, int size);
-int *getRandomArray(int size);
+int *getRandomArray(int size, int minValue, int maxValue);
 int randInt(int a, int b);
 
-// the size of the array to sort
-int arrayLength = 10;
-
-// the range of numbers in the array
-int startRange = 0;
-int endRange = 100;
+// flag to determine if the prng has been seeded
+int randNotSeeded = 1;
 
 int main(int argc, char *argv[])
 {
-    srand(time(0));
     int numranks, rank;
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &numranks);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+    // the random number array to be sorted
+    int *testArray;
+
+    // this ranks chunk of the values
+    int *myChunk;
+
+    // the size of the random number array to sort
+    int arrayLength;
+
+    // the range of numbers in the random number array
+    int minValue, maxValue;
+
+    // the amount of values given to each node
+    int chunkSize;
+
+    // send counts and displacements for scatterv
+    int *sendCounts, *displacements;
+
+    // the rank to send your chunk to to be merged
+    int buddy;
+
+    // rank 0 gets user input
     if (rank == 0)
     {
-        int *testArray = getRandomArray(arrayLength);
+        if (argc != 4)
+        {
+            printf("USSAGE: %s arrayLength minValue maxValue", argv[0]);
+        }
+
+        arrayLength = atoi(argv[1]);
+        minValue = atoi(argv[2]);
+        maxValue = atoi(argv[3]);
     }
-    MPI_Bcast();
+
+    // rank 0 sends arrayLength to everyone
+    MPI_Bcast(&arrayLength, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // rank 0 creates the random number array
+    if (rank == 0)
+    {
+        testArray = getRandomArray(arrayLength);
+    }
+
+    // calculate chunk size
+    chunkSize = arrayLength / numranks;
+    if (rank < arrayLength % numranks)
+    {
+        chunkSize++;
+    }
+
+    // allocate space for myChunk
+    myChunk = (int *)malloc(chunkSize * sizeof(int));
+
+    // everyone calculates sendCounts and displacements
+    sendCounts = (int *)malloc(numranks * sizeof(sendCounts));
+    displacements = (int *)malloc(numranks * sizeof(displacements));
+    for (i = 0; i < numranks; i++)
+    {
+        sendCounts[i] = n / numranks;
+        if (i < n % numranks)
+        {
+            sendCounts[i]++;
+        }
+
+        if (i == 0)
+        {
+            displacements[i] = 0;
+        }
+        else
+        {
+            displacements[i] = displacements[i - 1] + sendCounts[i - 1];
+        }
+    }
+
+    // rank 0 sends chunks of values to everyone
+    MPI_Scatterv(testArray, sendCounts, displacements, MPI_INT, myChunk, chunkSize, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // perform merge sort on myChunk
+    mergeSort(myChunk, chunkSize);
+
     
 
     double start = MPI_Wtime();
@@ -55,7 +125,7 @@ void recMergeSort(int *mergeBuffer, int *input, int a, int b)
     if (size > 16)
     {
         // halve
-        int m = size / 2 + a; // the midpoint of the range the larger half goes to the right half
+        int m = size / 2 + a;                   // the midpoint of the range the larger half goes to the right half
         recMergeSort(mergeBuffer, input, a, m); // left half
         recMergeSort(mergeBuffer, input, m, b); // right half
 
@@ -105,9 +175,9 @@ void recMergeSort(int *mergeBuffer, int *input, int a, int b)
         }
 
         // copy the sorted range back over to the input array for the next merge
-        input += a;  // move pointers forward to a, then copy b-a elements from there
+        input += a; // move pointers forward to a, then copy b-a elements from there
         mergeBuffer += a;
-        memcpy(input, mergeBuffer, size*sizeof(int));
+        memcpy(input, mergeBuffer, size * sizeof(int));
     }
     else
     {
@@ -115,9 +185,10 @@ void recMergeSort(int *mergeBuffer, int *input, int a, int b)
     }
 }
 
+// sorts the values of an array within a range [a,b)
 void insertionSort(int *input, int a, int b)
 {
-    int current, i, j; 
+    int current, i, j;
     // loop over the range
     for (i = a + 1; i < b; i++)
     {
@@ -142,6 +213,7 @@ void insertionSort(int *input, int a, int b)
     }
 }
 
+// selection sort UNUSED
 void selectionSort(int *array, int size)
 {
     for (int i = 0; i < size; i++)
@@ -161,6 +233,7 @@ void selectionSort(int *array, int size)
     }
 }
 
+// prints and array of integers in a row
 void printArray(int *array, int size)
 {
     for (int i = 0; i < size; i++)
@@ -170,16 +243,25 @@ void printArray(int *array, int size)
     printf("\n");
 }
 
-int *getRandomArray(int size)
+int *getRandomArray(int size, int minValue, int maxValue)
 {
-    int *array = (int *)malloc(size * sizeof(int));
+    // seed the prng if needed
+    if (randNotSeeded)
+    {
+        srand(time(0));
+        randNotSeeded = 0;
+    }
+
+    // allocate an array and set its values to random numbers
+    int *randomValues = (int *)malloc(size * sizeof(int));
     for (int i = 0; i < size; i++)
     {
-        array[i] = randInt(startRange, endRange);
+        randomValues[i] = randInt(minValue, maxValue);
     }
-    return array;
+    return randomValues;
 }
 
+// returns a random integer within a range [a,b)
 int randInt(int a, int b)
 {
     return (rand() % b) + a;
