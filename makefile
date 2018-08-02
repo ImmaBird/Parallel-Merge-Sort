@@ -3,12 +3,6 @@ LDC = mpicc #linker
 CPROGS = sort.cx
 FLAGS = -fopenmp
 
-ifeq ($(OS), Windows_NT)
-	DOCKER=docker.exe
-else
-	DOCKER=docker
-endif
-
 all: $(CPROGS)
 
 %.cx:%.o
@@ -24,5 +18,5 @@ cluster-run:
 	qsub pbs_sort
 
 docker-run:
-	$(DOCKER) build -t mm:latest .
-	$(DOCKER) run --rm mm:latest
+	docker build -t parallel-sort:latest .
+	docker run --rm parallel-sort:latest
