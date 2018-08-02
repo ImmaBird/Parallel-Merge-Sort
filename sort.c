@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-int *mergeSort(int *array, int size);
-void recMergeSort(int *ans, int *array, int a, int b);
+void mergeSort(int *input, int size);
+void recMergeSort(int *mergeBuffer, int *input, int a, int b);
 void selectionSort(int *array, int size);
 void insertionSort(int *array, int a, int b);
 void printArray(int *array, int size);
@@ -39,14 +39,14 @@ int main(int argc, char *argv[])
     MPI_Finalize();
 }
 
-int *mergeSort(int *array, int size)
+void mergeSort(int *input, int size)
 {
-    int *ans = (int *)malloc(size * sizeof(int));
-    recMergeSort(ans, array, 0, size);
-    return ans;
+    int *mergeBuffer = (int *)malloc(size * sizeof(int));
+    recMergeSort(mergeBuffer, input, 0, size);
+    free(mergeBuffer);
 }
 
-void recMergeSort(int *ans, int *array, int a, int b)
+void recMergeSort(int *mergeBuffer, int *input, int a, int b)
 {
     // printf("Start a:%d b:%d size:%d\n", a, b, b - a);
     // printf("array: ");
@@ -54,28 +54,34 @@ void recMergeSort(int *ans, int *array, int a, int b)
     // printf("ans:   ");
     // printArray(ans, arrayLength);
     // fflush(stdout);
-    int size = b - a;
-    if (b - a > 3)
+    int size = b - a; // the number of elements within this range
+    if (size > 3)
     {
-        int m = size / 2 + a;
-        recMergeSort(ans, array, a, m);
-        recMergeSort(ans, array, m, b);
+        // halve
+        int m = size / 2 + a; // the midpoint of the range the larger half goes to the right half
+        recMergeSort(mergeBuffer, input, a, m); // left half
+        recMergeSort(mergeBuffer, input, m, b); // right half
 
         // merge
-        int l = a;
-        int r = m;
+        int l = a; // left begining index
+        int r = m; // right begining index
+
+        // loop over the range
         for (int i = a; i < b; i++)
         {
-            if (array[l] < array[r])
+            if (input[l] < input[r])
             {
-                ans[i] = array[l];
+                // if left is smaller...
+                mergeBuffer[i] = input[l];
                 l++;
                 if (l == m)
                 {
+                    // the left half is empty
                     while (r < b)
                     {
+                        // copy the rest of the left half to the end
                         i++;
-                        ans[i] = array[r];
+                        mergeBuffer[i] = input[r];
                         r++;
                     }
                     break;
@@ -83,14 +89,17 @@ void recMergeSort(int *ans, int *array, int a, int b)
             }
             else
             {
-                ans[i] = array[r];
+                // if right is smaller...
+                mergeBuffer[i] = input[r];
                 r++;
                 if (r == b)
                 {
+                    // the right half is empty
                     while (l < m)
                     {
+                        // copy the rest of the right half to the end
                         i++;
-                        ans[i] = array[l];
+                        mergeBuffer[i] = input[l];
                         l++;
                     }
                     break;
@@ -98,14 +107,15 @@ void recMergeSort(int *ans, int *array, int a, int b)
             }
         }
 
+        // copy the sorted range back over to the input array for the next merge
         for (int i = a; i < b; i++)
         {
-            array[i] = ans[i];
+            input[i] = mergeBuffer[i];
         }
     }
     else
     {
-        insertionSort(array, a, b);
+        insertionSort(input, a, b);
     }
     // printf("End a:%d b:%d size:%d\n", a, b, b - a);
     // printf("array: ");
