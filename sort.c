@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
     {
         if (argc != 4)
         {
-            printf("USSAGE: %s arrayLength minValue maxValue", argv[0]);
+            printf("USAGE: %s arrayLength minValue maxValue", argv[0]);
         }
 
         arrayLength = atoi(argv[1]);
@@ -63,26 +63,16 @@ int main(int argc, char *argv[])
     // rank 0 creates the random number array
     if (rank == 0)
     {
-        testArray = getRandomArray(arrayLength);
+        testArray = getRandomArray(arrayLength, minValue, maxValue);
     }
-
-    // calculate chunk size
-    chunkSize = arrayLength / numranks;
-    if (rank < arrayLength % numranks)
-    {
-        chunkSize++;
-    }
-
-    // allocate space for myChunk
-    myChunk = (int *)malloc(chunkSize * sizeof(int));
 
     // everyone calculates sendCounts and displacements
     sendCounts = (int *)malloc(numranks * sizeof(sendCounts));
     displacements = (int *)malloc(numranks * sizeof(displacements));
-    for (i = 0; i < numranks; i++)
+    for (int i = 0; i < numranks; i++)
     {
-        sendCounts[i] = n / numranks;
-        if (i < n % numranks)
+        sendCounts[i] = arrayLength / numranks;
+        if (i < arrayLength % numranks)
         {
             sendCounts[i]++;
         }
@@ -96,6 +86,10 @@ int main(int argc, char *argv[])
             displacements[i] = displacements[i - 1] + sendCounts[i - 1];
         }
     }
+
+    // allocate space for myChunk
+    chunkSize = sendCounts[rank];
+    myChunk = (int *)malloc(chunkSize * sizeof(int));
 
     // rank 0 sends chunks of values to everyone
     MPI_Scatterv(testArray, sendCounts, displacements, MPI_INT, myChunk, chunkSize, MPI_INT, 0, MPI_COMM_WORLD);
