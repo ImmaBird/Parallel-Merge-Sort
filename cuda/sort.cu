@@ -3,11 +3,22 @@
 #include <time.h>
 #include "sort.cuh"
 
-#define SIZE 524288
+#define SIZE 260000// 100000 works
 #define THREADS_PER_BLOCK 512
 
 #define STARTRANGE 0
 #define ENDRANGE 100
+
+void insertionSortA(int *array, int a, int b);
+
+int comparator(const void *p, const void *q) 
+{
+    // Get the values at given addresses
+    int l = *(const int *)p;
+    int r = *(const int *)q;
+
+    return l-r;
+}
 
 int main()
 {
@@ -17,9 +28,10 @@ int main()
     srand(time(0));
 
     int *data;
-
     data = getRandomArray(SIZE);
-    //printArray(data, SIZE);
+    int *test = (int*)malloc(SIZE*sizeof(int));
+    memcpy(test, data, SIZE*sizeof(int));
+    qsort(test, SIZE, sizeof(int), comparator);
 
     clock_t start, stop;
     start = clock();
@@ -30,15 +42,15 @@ int main()
     double elapsed = ((double) (stop - start)) / CLOCKS_PER_SEC;
     printf("Elapsed time: %.3fs\n", elapsed);
 
-    //printf("\nResult: ");
-    //printArray(data, SIZE);
 
-    for (int i = 1; i < SIZE; i++) {
-        if (data[i] < data[i-1]) {
-            printf("Broken :(\n");
+    for (int i = 0; i < SIZE; i++) {
+        if (data[i] != test[i]) {
+            printf("Broken :( %d\n", i);
             break;
         }
     }
+    printArray(test, 15);
+    printArray(data, 15);
 
     // Cleanup
     free(data);
@@ -54,8 +66,7 @@ void mergeSort(int *array, int arraySize)
     cudaMemcpy(d_array, array, arraySize*sizeof(int), cudaMemcpyHostToDevice);
 
     int chunkSize = 2;
-    int chunks = arraySize / chunkSize;
-    
+    int chunks = arraySize / chunkSize + 1;
     int blocks = chunks / THREADS_PER_BLOCK + 1;
 
     gpu_mergeSort<<<blocks, THREADS_PER_BLOCK>>>(d_array, arraySize, chunkSize);
@@ -64,16 +75,12 @@ void mergeSort(int *array, int arraySize)
     // Make temp array for the merge
     int* d_temp_data;
     cudaMalloc((void **)&d_temp_data, arraySize);
-    chunkSize *= 2;
     while(chunkSize <= arraySize)
     {
-        gpu_merge<<<blocks, THREADS_PER_BLOCK>>>(d_array, d_temp_data, arraySize, chunkSize);
-        // TODO: Make chunkSize math not terrible
-        if (chunkSize == arraySize) break;
         chunkSize *= 2;
-        if (chunkSize > arraySize) chunkSize = arraySize;
-        chunks = arraySize / chunkSize;
+        chunks = arraySize / chunkSize + 1;
         blocks = chunks / THREADS_PER_BLOCK + 1;
+        gpu_merge<<<blocks, THREADS_PER_BLOCK>>>(d_array, d_temp_data, arraySize, chunkSize);
         cudaDeviceSynchronize();
     }
 
@@ -85,63 +92,67 @@ void mergeSort(int *array, int arraySize)
 __global__ void gpu_mergeSort(int *d_array, int arraySize, int chunkSize)
 {
     // Figure out left and right for this thread
-    int l = (threadIdx.x + blockDim.x * blockIdx.x) * chunkSize;
-    if (l >= arraySize) return;
-    int r = l + chunkSize;
-    if (r > arraySize) r = arraySize;
+    int a = (threadIdx.x + blockDim.x * blockIdx.x) * chunkSize;
+    if (a >= arraySize) return;
 
-    insertionSort(d_array, l, r);
+    int b = a + chunkSize;
+    if (b > arraySize) b = arraySize;
+
+    insertionSort(d_array, a, b);
 }
 
 __global__ void gpu_merge(int *d_array, int *d_temp_array, int arraySize, int chunkSize)
 {
     // Figure out left and right for this thread
-    int l = (threadIdx.x + blockDim.x * blockIdx.x) * chunkSize;
-    if (l >= arraySize) return;
-    int r = l + chunkSize;
-    if (r > arraySize) r = arraySize;
+    int a = (threadIdx.x + blockDim.x * blockIdx.x) * chunkSize;
+    if (a >= arraySize) return;
+    int b = a + chunkSize;
+    int m = (b - a) / 2 + a;
+    if (m >= arraySize) return;
+    if (b > arraySize) b = arraySize;
 
-    int cur_l = l;
-    int m = (r - l) / 2 + l;
-    int cur_r = m;
+    //if (a == 0)
+    //{
+    //    printf("a:%d m:%d b:%d cs:%d\n", a, m, b, chunkSize);
+    //}
 
-    // if (threadIdx.x == 0)
-    // {
-    //     printf("(Before) Block: %d l: %d r: %d m: %d\n", blockIdx.x, l, r, m);
-    //     for (int i = l; i < r; i++)
-    //     {
-    //         printf("%d ", d_array[i]);
-    //     }
-    //     printf("\n");
-    // }
-
-    for (int i = l; i < r; i++)
-    {
-        if (cur_r >= r || (cur_l < m && d_array[cur_l] < d_array[cur_r]))
+    int l = a;
+    int r = m;
+    for (int i = a; i < b; i++)
         {
-            // left less than right
-            d_temp_array[i] = d_array[cur_l];
-            cur_l++;
+            if (d_array[l] < d_array[r])
+            {
+                d_temp_array[i] = d_array[l];
+                l++;
+                if (l == m)
+                {
+                    while (r < b)
+                    {
+                        i++;
+                        d_temp_array[i] = d_array[r];
+                        r++;
+                    }
+                    break;
+                }
+            }
+            else
+            {
+                d_temp_array[i] = d_array[r];
+                r++;
+                if (r == b)
+                {
+                    while (l < m)
+                    {
+                        i++;
+                        d_temp_array[i] = d_array[l];
+                        l++;
+                    }
+                    break;
+                }
+            }
         }
-        else
-        {
-            // right less than left
-            d_temp_array[i] = d_array[cur_r];
-            cur_r++;
-        }     
-    }
 
-    memcpy(d_array+l, d_temp_array+l, chunkSize*sizeof(int));
-
-    // if (threadIdx.x == 0)
-    // {
-    //     printf("(After) Block: %d l: %d r: %d\n", blockIdx.x, l, r);
-    //     for (int i = l; i < r; i++)
-    //     {
-    //         printf("%d ", d_array[i]);
-    //     }
-    //     printf("\n");
-    // }
+    memcpy(d_array+a, d_temp_array+a, (b-a)*sizeof(int));
 }
 
 __device__ void insertionSort(int *array, int a, int b)
@@ -181,6 +192,27 @@ __device__ void selectionSort(int *array, int size)
         }
         array[index] = array[i];
         array[i] = smallest;
+    }
+}
+
+void insertionSortA(int *array, int a, int b)
+{
+    int current;
+    for (int i = a + 1; i < b; i++)
+    {
+        current = array[i];
+        for (int j = i - 1; j >= a - 1; j--)
+        {
+            if (j == a - 1 || current > array[j])
+            {
+                array[j + 1] = current;
+                break;
+            }
+            else
+            {
+                array[j + 1] = array[j];
+            }
+        }
     }
 }
 
