@@ -18,5 +18,5 @@ cluster-run:
 	qsub pbs_sort
 
 docker-run:
-	docker.exe build -t mm:latest .
-	docker.exe run --rm mm:latest
+	docker build -t parallel-sort:latest .
+	docker run --rm parallel-sort:latest
