@@ -1,0 +1,7 @@
+**.DS_Store**
+*.pdf
+*.cx
+*.o*
+**~*.xlsx
+cuda/*.exp
+cuda/*.lib
