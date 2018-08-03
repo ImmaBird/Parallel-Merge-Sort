@@ -4,13 +4,14 @@
 #include <time.h>
 #include "omp.h"
 
+int cmpfunc (const void * a, const void * b);
 void mergeSort(int *input, int size);
 void merge(int *mergeBuffer, int *input, int a, int b, int startLeft, int startRight);
 void recMergeSort(int *mergeBuffer, int *input, int a, int b);
 void selectionSort(int *array, int size);
 void insertionSort(int *input, int a, int b);
 void printArray(int *array, int size);
-int isSortedArray(int *array, int start, int end);
+int isSortedArray(int *array, int *qsortedArray, int start, int end);
 int *getRandomArray(int size, int minValue, int maxValue);
 int randInt(int a, int b);
 
@@ -21,6 +22,7 @@ int main(int argc, char *argv[])
 {
     // the random number array to be sorted
     int *testArray;
+    int *qsortedArray;
 
     // the size of the random number array to sort
     int arrayLength;
@@ -38,6 +40,9 @@ int main(int argc, char *argv[])
     maxValue = atoi(argv[3]);
 
     testArray = getRandomArray(arrayLength, minValue, maxValue);
+    qsortedArray = malloc(arrayLength * sizeof(int));
+    memcpy(qsortedArray, testArray, arrayLength * sizeof(int));
+    qsort((void*)qsortedArray, arrayLength, sizeof(int), cmpfunc);
 
     clock_t start, stop;
     start = clock();
@@ -53,69 +58,23 @@ int main(int argc, char *argv[])
     if (arrayLength <= 20)
         printArray(testArray, arrayLength);
 
-    if (isSortedArray(testArray, 0, arrayLength) == 1)
+    if (isSortedArray(testArray, qsortedArray, 0, arrayLength) == 1)
         printf("Broken :(\n");
 
     free(testArray);
+}
+
+int cmpfunc(const void *a, const void *b)
+{
+    return(*(int*)a - *(int*)b);
 }
 
 void mergeSort(int *input, int size)
 {
     int *mergeBuffer = (int *)malloc(size * sizeof(int));
     #pragma omp parallel
-    {
-        int threadId = omp_get_thread_num();
-        int numThreads = omp_get_num_threads();
-        int chunks = numThreads;
-
-        if (size / chunks == 0) // Not everyone gets a chunk
-        {
-            #pragma omp single
-            recMergeSort(mergeBuffer, input, 0, size);
-        }
-        else
-        {
-            int chunkSize = size / chunks + 1;
-            int myStart = threadId * chunkSize;
-            int myEnd = myStart + chunkSize;
-            if (myEnd > size)
-                myEnd = size;
-
-            clock_t start, stop;
-            double duration;
-
-            printf("thread: %d myStart: %d myEnd: %d\n", threadId, myStart, myEnd);
-            
-            start = clock();
-            recMergeSort(mergeBuffer, input, myStart, myEnd);
-            stop = clock();
-            duration = ((double)stop - start) / CLOCKS_PER_SEC;
-            printf("Thread: %d, Ran in %.4f seconds.\n", threadId, duration);
-
-            #pragma omp barrier
-            #pragma omp single
-            {
-                while (chunks > 1)
-                {
-                    int merges = chunks / 2;
-                    for (int i = 0; i < merges; i++)
-                    {
-                        int taskStart = i * chunkSize * 2;
-                        int taskEnd = taskStart + chunkSize * 2;
-                        int startRight = (taskEnd - taskStart) / 2 + taskStart;
-                        if (taskEnd > size)
-                            taskEnd = size;
-
-                        #pragma omp task
-                        merge(mergeBuffer, input, taskStart, taskEnd, taskStart, startRight);
-                    }
-                    chunks = (chunks / 2) + (chunks % 2);
-                    chunkSize *= 2;
-                    #pragma omp taskwait
-                }
-            }
-        }
-    }
+    #pragma omp single
+    recMergeSort(mergeBuffer, input, 0, size);
     free(mergeBuffer);
 }
 
@@ -126,12 +85,18 @@ void recMergeSort(int *mergeBuffer, int *input, int a, int b)
     {
         // halve
         int m = size / 2 + a;                   // the midpoint of the range the larger half goes to the right half
+        
+        #pragma omp task if(size > 1024)
         recMergeSort(mergeBuffer, input, a, m); // left half
+        #pragma omp task if(size > 1024)
         recMergeSort(mergeBuffer, input, m, b); // right half
+        
+        #pragma omp taskwait
 
         // merge
         int l = a; // left begining index
         int r = m; // right begining index
+
         merge(mergeBuffer, input, a, b, l, r);
     }
     else
@@ -148,41 +113,15 @@ void merge(int *mergeBuffer, int *input, int a, int b, int startLeft, int startR
     // loop over the range
     for (int i = a; i < b; i++)
     {
-        if (input[l] < input[r])
+        if (r >= b || (l < startRight && input[l] < input[r]))
         {
-            // if left is smaller...
             mergeBuffer[i] = input[l];
             l++;
-            if (l == startRight)
-            {
-                // the left half is empty
-                while (r < b)
-                {
-                    // copy the rest of the right half to the end
-                    i++;
-                    mergeBuffer[i] = input[r];
-                    r++;
-                }
-                break;
-            }
         }
         else
         {
-            // if right is smaller...
             mergeBuffer[i] = input[r];
             r++;
-            if (r == b)
-            {
-                // the right half is empty
-                while (l < startRight)
-                {
-                    // copy the rest of the left half to the end
-                    i++;
-                    mergeBuffer[i] = input[l];
-                    l++;
-                }
-                break;
-            }
         }
     }
 
@@ -251,10 +190,10 @@ void printArray(int *array, int size)
 }
 
 // Returns 0 if sorted, 1 if not sorted
-int isSortedArray(int *array, int start, int end)
+int isSortedArray(int *array, int *qsortedArray, int start, int end)
 {
-    for (int i = start+1; i < end; i++)
-        if (array[i] < array[i - 1])
+    for (int i = start; i < end; i++)
+        if (array[i] != qsortedArray[i])
             return 1;
     return 0;
 }
