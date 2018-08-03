@@ -3,8 +3,8 @@
 #include <time.h>
 #include "sort.cuh"
 
-#define SIZE 260000// 100000 works
-#define THREADS_PER_BLOCK 512
+#define SIZE 16000000// 100000 works
+#define THREADS_PER_BLOCK 1
 
 #define STARTRANGE 0
 #define ENDRANGE 100
@@ -60,28 +60,34 @@ int main()
 
 void mergeSort(int *array, int arraySize)
 {
+    cudaError_t err;
+
     // Make array in gpu memory
     int *d_array;
-    cudaMalloc((void **)&d_array, arraySize*sizeof(int));
-    cudaMemcpy(d_array, array, arraySize*sizeof(int), cudaMemcpyHostToDevice);
+    err = cudaMalloc((void **)&d_array, arraySize*sizeof(int));
+    //printf("malloc: %s\n", cudaGetErrorString(err));
+    err = cudaMemcpy(d_array, array, arraySize*sizeof(int), cudaMemcpyHostToDevice);
+    //printf("cpy: %s\n", cudaGetErrorString(err));
 
     int chunkSize = 2;
     int chunks = arraySize / chunkSize + 1;
     int blocks = chunks / THREADS_PER_BLOCK + 1;
 
     gpu_mergeSort<<<blocks, THREADS_PER_BLOCK>>>(d_array, arraySize, chunkSize);
-    cudaDeviceSynchronize();
+    err = cudaDeviceSynchronize();
+    //printf("Merge Sort: %s\n", cudaGetErrorString(err));
 
     // Make temp array for the merge
     int* d_temp_data;
-    cudaMalloc((void **)&d_temp_data, arraySize);
+    cudaMalloc((void **)&d_temp_data, arraySize*sizeof(int));
     while(chunkSize <= arraySize)
     {
         chunkSize *= 2;
         chunks = arraySize / chunkSize + 1;
         blocks = chunks / THREADS_PER_BLOCK + 1;
         gpu_merge<<<blocks, THREADS_PER_BLOCK>>>(d_array, d_temp_data, arraySize, chunkSize);
-        cudaDeviceSynchronize();
+        err = cudaDeviceSynchronize();
+        //printf("Merge: %s chunkSize: %d\n", cudaGetErrorString(err), chunkSize);
     }
 
     // Copy result back to host
@@ -104,6 +110,7 @@ __global__ void gpu_mergeSort(int *d_array, int arraySize, int chunkSize)
 __global__ void gpu_merge(int *d_array, int *d_temp_array, int arraySize, int chunkSize)
 {
     // Figure out left and right for this thread
+    //printf("threadIdx: %d, blockDim: %d, blockIdx: %d\n", threadIdx.x, blockDim.x, blockIdx.x);
     int a = (threadIdx.x + blockDim.x * blockIdx.x) * chunkSize;
     if (a >= arraySize) return;
     int b = a + chunkSize;
@@ -111,10 +118,10 @@ __global__ void gpu_merge(int *d_array, int *d_temp_array, int arraySize, int ch
     if (m >= arraySize) return;
     if (b > arraySize) b = arraySize;
 
-    //if (a == 0)
-    //{
+    // if (a == 0)
+    // {
     //    printf("a:%d m:%d b:%d cs:%d\n", a, m, b, chunkSize);
-    //}
+    // }
 
     int l = a;
     int r = m;
