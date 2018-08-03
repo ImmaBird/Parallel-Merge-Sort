@@ -3,3 +3,5 @@
 *.cx
 *.o*
 **~*.xlsx
+cuda/*.exp
+cuda/*.lib
