@@ -3,8 +3,8 @@
 #include <time.h>
 #include "sort.cuh"
 
-#define SIZE 16000000// 100000 works
-#define THREADS_PER_BLOCK 1
+#define SIZE 16000000
+#define THREADS_PER_BLOCK 512
 
 #define STARTRANGE 0
 #define ENDRANGE 100

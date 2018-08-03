@@ -21,4 +21,4 @@ sort.cx:sort.o
 
 #clean rule
 clean:
-	$(RM) -rf *.o *.cx
+	$(RM) -rf *.o *.cx *.exp *.lib
