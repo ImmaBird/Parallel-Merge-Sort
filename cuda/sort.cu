@@ -3,11 +3,11 @@
 #include <time.h>
 #include "sort.cuh"
 
-#define SIZE 10000000
+#define SIZE 100000000
 #define STARTRANGE 0
 #define ENDRANGE 100
 
-#define THREADS_PER_BLOCK 1024
+#define THREADS_PER_BLOCK 256
 
 // flag if the prng has been seeded
 int randNotSeeded = 1;
@@ -81,11 +81,16 @@ void mergeSort(int *array, int arraySize)
     cudaMalloc((void **)&d_array, arraySize*sizeof(int));
     cudaMemcpy(d_array, array, arraySize*sizeof(int), cudaMemcpyHostToDevice);
 
-    int chunkSize = 2;
+    int chunkSize = 16;
     int chunks = arraySize / chunkSize + 1;
     int blocks = chunks / THREADS_PER_BLOCK + 1;
     gpu_sort<<<blocks, THREADS_PER_BLOCK>>>(d_array, arraySize, chunkSize);
     cudaDeviceSynchronize();
+
+    // cudaMemcpy(array, d_array, arraySize*sizeof(int), cudaMemcpyDeviceToHost);
+    // cudaFree(d_array);
+    // cpuMerge(array, SIZE, chunkSize);
+    
 
     // Make temp array for the merge
     cudaError_t err;
@@ -104,6 +109,8 @@ void mergeSort(int *array, int arraySize)
     // Copy result back to host
     cudaMemcpy(array, d_array, arraySize*sizeof(int), cudaMemcpyDeviceToHost);
     cudaFree(d_array);
+
+
 }
 
 // sorts a bunch of small chunks from one big array
@@ -168,6 +175,60 @@ __global__ void gpu_merge(int *d_array, int *d_temp_array, int arraySize, int ch
         }
 
     memcpy(d_array+a, d_temp_array+a, (b-a)*sizeof(int));
+}
+
+void cpuMerge(int *data, int size, int chunkSize)
+{
+    int *buffer = (int*)malloc(size*sizeof(int));
+    int a, b, m, l, r, i;
+    for (;; chunkSize *= 2)
+    {
+        for (a = 0; a < size; a += chunkSize)
+        {
+            b = a + chunkSize;
+            m = (b - a) / 2 + a;
+            if (m >= size) break;
+            if (b > size) b = size;
+
+            l = a;
+            r = m;
+            for (i = a; i < b; i++)
+            {
+                if (data[l] < data[r])
+                {
+                    buffer[i] = data[l];
+                    l++;
+                    if (l == m)
+                    {
+                        while (r < b)
+                        {
+                            i++;
+                            buffer[i] = data[r];
+                            r++;
+                        }
+                        break;
+                    }
+                }
+                else
+                {
+                    buffer[i] = data[r];
+                    r++;
+                    if (r == b)
+                    {
+                        while (l < m)
+                        {
+                            i++;
+                            buffer[i] = data[l];
+                            l++;
+                        }
+                        break;
+                    }
+                }
+            }
+            memcpy(data+a, buffer+a, (b-a)*sizeof(int));
+        }
+        if (chunkSize >= size) break;
+    }
 }
 
 // sorts an array from [a,b)

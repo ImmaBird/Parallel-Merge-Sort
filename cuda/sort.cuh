@@ -10,5 +10,6 @@ int *getRandomArray(int size);
 int randInt(int a, int b);
 int comparator(const void *p, const void *q);
 int compareArrays(int *array1, int *array2);
+void cpuMerge(int *data, int size, int chunkSize);
 
 #endif

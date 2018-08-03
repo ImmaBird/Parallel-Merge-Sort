@@ -18,4 +18,4 @@ clean:
 
 docker-run:
 	docker build -t parallel-sort-serial:latest .
-	docker run --rm parallel-sort-serial:latest 16000000 0 100
+	docker run --rm parallel-sort-serial:latest 100000000 0 100
