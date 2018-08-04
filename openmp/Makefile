@@ -18,4 +18,4 @@ clean:
 
 docker-run:
 	docker build -t parallel-sort-openmp:latest .
-	docker run --rm parallel-sort-openmp:latest 16000000 0 100
+	docker run --rm parallel-sort-openmp:latest 100000000 0 100

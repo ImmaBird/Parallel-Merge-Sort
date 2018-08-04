@@ -7,7 +7,8 @@
 int cmpfunc (const void * a, const void * b);
 void mergeSort(int *input, int size);
 void merge(int *mergeBuffer, int *input, int a, int b, int startLeft, int startRight);
-void recMergeSort(int *mergeBuffer, int *input, int a, int b);
+void recMergeSort(int *mergeBuffer, int *input, int a, int b, int threads);
+void recMergeSortSerial(int *mergeBuffer, int *input, int a, int b);
 void selectionSort(int *array, int size);
 void insertionSort(int *input, int a, int b);
 void printArray(int *array, int size);
@@ -44,16 +45,16 @@ int main(int argc, char *argv[])
     memcpy(qsortedArray, testArray, arrayLength * sizeof(int));
     qsort((void*)qsortedArray, arrayLength, sizeof(int), cmpfunc);
 
-    clock_t start, stop;
-    start = clock();
+    double start, stop;
+    start = omp_get_wtime();
     mergeSort(testArray, arrayLength);
-    stop = clock();
+    stop = omp_get_wtime();
 
     int num_threads;
     #pragma omp parallel
     #pragma omp single
     num_threads = omp_get_num_threads();
-    double duration = ((double)stop - start) / CLOCKS_PER_SEC;
+    double duration = ((double)stop - start);
     printf("Threads: %d, Ran in %.4f seconds.\n", num_threads, duration);
     if (arrayLength <= 20)
         printArray(testArray, arrayLength);
@@ -74,24 +75,48 @@ void mergeSort(int *input, int size)
     int *mergeBuffer = (int *)malloc(size * sizeof(int));
     #pragma omp parallel
     #pragma omp single
-    recMergeSort(mergeBuffer, input, 0, size);
+    recMergeSort(mergeBuffer, input, 0, size, omp_get_num_threads());
     free(mergeBuffer);
 }
 
-void recMergeSort(int *mergeBuffer, int *input, int a, int b)
+void recMergeSort(int *mergeBuffer, int *input, int a, int b, int threads)
 {
     int size = b - a; // the number of elements within this range
+    if (threads == 1)
+    {
+        recMergeSortSerial(mergeBuffer, input, a, b);
+    }
+    else
+    {
+        // halve
+        int m = size / 2 + a;  // the midpoint of the range the larger half goes to the right half
+        
+        #pragma omp task
+        recMergeSort(mergeBuffer, input, a, m, threads/2); // left half
+        #pragma omp task
+        recMergeSort(mergeBuffer, input, m, b, threads-threads/2); // right half
+        
+        #pragma omp taskwait
+
+        // merge
+        int l = a; // left begining index
+        int r = m; // right begining index
+
+        merge(mergeBuffer, input, a, b, l, r);
+    }
+}
+
+void recMergeSortSerial(int *mergeBuffer, int *input, int a, int b)
+{
+    int size = b - a;
+
     if (size > 16)
     {
         // halve
-        int m = size / 2 + a;                   // the midpoint of the range the larger half goes to the right half
-        
-        #pragma omp task if(size > 1024)
-        recMergeSort(mergeBuffer, input, a, m); // left half
-        #pragma omp task if(size > 1024)
-        recMergeSort(mergeBuffer, input, m, b); // right half
-        
-        #pragma omp taskwait
+        int m = size / 2 + a;  // the midpoint of the range the larger half goes to the right half
+
+        recMergeSortSerial(mergeBuffer, input, a, m); // left half
+        recMergeSortSerial(mergeBuffer, input, m, b); // right half
 
         // merge
         int l = a; // left begining index

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "omp.h"
 
 void mergeSort(int *input, int size);
 void recMergeSort(int *mergeBuffer, int *input, int a, int b);
@@ -37,11 +38,11 @@ int main(int argc, char *argv[])
 
     testArray = getRandomArray(arrayLength, minValue, maxValue);
 
-    clock_t start, stop;
-    start = clock();
+    double start, stop;
+    start = omp_get_wtime();
     mergeSort(testArray, arrayLength);
-    stop = clock();
-    double duration = ((double)stop-start)/CLOCKS_PER_SEC;
+    stop = omp_get_wtime();
+    double duration = ((double)stop-start);
     printf("Ran in %.4f seconds.\n", duration);
     if(arrayLength < 20) printArray(testArray, arrayLength);
     if(isSortedArray(testArray, 0, arrayLength) == 1)

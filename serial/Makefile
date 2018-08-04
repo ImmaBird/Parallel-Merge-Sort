@@ -1,7 +1,7 @@
 CC = gcc #compiler
 LDC = gcc #linker
 CPROGS = sort.cx
-FLAGS =
+FLAGS = -fopenmp
 
 export TAU_MAKEFILE=/opt/sw/tau/x86_64/lib/Makefile.tau-pdt-openmp-opari
 
