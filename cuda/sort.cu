@@ -5,9 +5,10 @@
 
 #define SIZE 100000000
 #define STARTRANGE 0
-#define ENDRANGE 100
+#define ENDRANGE 10000
 
 #define THREADS_PER_BLOCK 256
+#define CHUNK_SIZE 16
 
 // flag if the prng has been seeded
 int randNotSeeded = 1;
@@ -34,7 +35,12 @@ int main()
     // gets the right answer to compare too at the end
     int *data_qsort = (int*)malloc(SIZE*sizeof(int));
     memcpy(data_qsort, data, SIZE*sizeof(int));
+
+    start = clock();
     qsort(data_qsort, SIZE, sizeof(int), comparator);
+    stop = clock();
+    double qsort_time = ((double) (stop - start)) / CLOCKS_PER_SEC;
+    
 
     // runs the program and times it
     start = clock();
@@ -62,66 +68,72 @@ int main()
     {
         printArray(data, SIZE);
     }
+    compareArrays(data, data_qsort, SIZE);
 
     // print elapsed time
     double elapsed = ((double) (stop - start)) / CLOCKS_PER_SEC;
-    printf("Elapsed time: %.3fs\n\n", elapsed);
+    printf("Elapsed time: %.3fs\n", elapsed);
+    printf("qsort time: %.3fs\n", qsort_time);
 
     // Cleanup
     free(data);
-
+    free(data_qsort);
     return 0;
 }
 
 // parallel merge sort using a GPU
-void mergeSort(int *array, int arraySize)
+void mergeSort(int *h_array, int arraySize)
 {
+    cudaError_t err;
     // Make array in gpu memory
     int *d_array;
-    cudaMalloc((void **)&d_array, arraySize*sizeof(int));
-    cudaMemcpy(d_array, array, arraySize*sizeof(int), cudaMemcpyHostToDevice);
+    cudaMalloc((void **)&d_array, arraySize * sizeof(int));
+    cudaMemcpy(d_array, h_array, arraySize * sizeof(int), cudaMemcpyHostToDevice);
 
-    int chunkSize = 16;
+    // sort
+    int chunkSize = CHUNK_SIZE;
     int chunks = arraySize / chunkSize + 1;
     int blocks = chunks / THREADS_PER_BLOCK + 1;
     gpu_sort<<<blocks, THREADS_PER_BLOCK>>>(d_array, arraySize, chunkSize);
     cudaDeviceSynchronize();
+    //cudaMemcpy(h_array, d_array, arraySize*sizeof(int), cudaMemcpyDeviceToHost);
+    //cudaFree(d_array);
 
-    // cudaMemcpy(array, d_array, arraySize*sizeof(int), cudaMemcpyDeviceToHost);
-    // cudaFree(d_array);
-    // cpuMerge(array, SIZE, chunkSize);
+    // merge
+    //cpuMerge(h_array, arraySize, chunkSize);
     
 
     // Make temp array for the merge
-    cudaError_t err;
     int* d_temp_data;
     cudaMalloc((void **)&d_temp_data, arraySize*sizeof(int));
-    while(chunkSize <= arraySize)
+    do
     {
         chunkSize *= 2;
         chunks = arraySize / chunkSize + 1;
         blocks = chunks / THREADS_PER_BLOCK + 1;
+        if (chunkSize >= arraySize / 2048)
+        {
+            cudaMemcpy(h_array, d_array, arraySize*sizeof(int), cudaMemcpyDeviceToHost);
+            cudaFree(d_array);
+            cpuMerge(h_array, arraySize, chunkSize);
+            break;
+        }
         gpu_merge<<<blocks, THREADS_PER_BLOCK>>>(d_array, d_temp_data, arraySize, chunkSize);
         err = cudaDeviceSynchronize();
         printf("Merge: %s chunkSize: %d\n", cudaGetErrorString(err), chunkSize);
     }
-
-    // Copy result back to host
-    cudaMemcpy(array, d_array, arraySize*sizeof(int), cudaMemcpyDeviceToHost);
-    cudaFree(d_array);
-
-
+    while(chunkSize < arraySize);
 }
 
 // sorts a bunch of small chunks from one big array
-__global__ void gpu_sort(int *d_array, int arraySize, int chunkSize)
+__global__ void gpu_sort(int *d_array, int size, int chunkSize)
 {
     // Figure out left and right for this thread
     int a = (threadIdx.x + blockDim.x * blockIdx.x) * chunkSize;
-    if (a >= arraySize) return;
+    if (a >= size) return;
 
     int b = a + chunkSize;
-    if (b > arraySize) b = arraySize;
+    if (b > size) b = size;
 
     insertionSort(d_array, a, b);
 }
@@ -129,105 +141,99 @@ __global__ void gpu_sort(int *d_array, int arraySize, int chunkSize)
 // merges small sorted arrays into on big one
 __global__ void gpu_merge(int *d_array, int *d_temp_array, int arraySize, int chunkSize)
 {
-    // Figure out left and right for this thread
-    //printf("threadIdx: %d, blockDim: %d, blockIdx: %d\n", threadIdx.x, blockDim.x, blockIdx.x);
-    int a = (threadIdx.x + blockDim.x * blockIdx.x) * chunkSize;
+    int pos = (threadIdx.x + blockDim.x * blockIdx.x);
+    int a = pos * chunkSize;
     if (a >= arraySize) return;
-    int b = a + chunkSize;
-    int m = (b - a) / 2 + a;
+    int halfChunk = chunkSize / 2;
+    int m = a + halfChunk;
     if (m >= arraySize) return;
+    int b = m + halfChunk;
     if (b > arraySize) b = arraySize;
 
-    int l = a;
-    int r = m;
-    for (int i = a; i < b; i++)
-        {
-            if (d_array[l] < d_array[r])
-            {
-                d_temp_array[i] = d_array[l];
-                l++;
-                if (l == m)
-                {
-                    while (r < b)
-                    {
-                        i++;
-                        d_temp_array[i] = d_array[r];
-                        r++;
-                    }
-                    break;
-                }
-            }
-            else
-            {
-                d_temp_array[i] = d_array[r];
-                r++;
-                if (r == b)
-                {
-                    while (l < m)
-                    {
-                        i++;
-                        d_temp_array[i] = d_array[l];
-                        l++;
-                    }
-                    break;
-                }
-            }
-        }
+    mergeArrays(d_array, d_temp_array, a, m, b);
 
-    memcpy(d_array+a, d_temp_array+a, (b-a)*sizeof(int));
+    for (int i = a; i < b; i++)
+    {
+        d_array[i] = d_temp_array[i];
+    }
+    //memcpy(d_array+a, d_temp_array+a, (b-a)*sizeof(int));
 }
 
-void cpuMerge(int *data, int size, int chunkSize)
+// serial cpu merge chunk size is the size of one sorted arrays
+void cpuMerge(int *array, int size, int chunkSize)
 {
     int *buffer = (int*)malloc(size*sizeof(int));
-    int a, b, m, l, r, i;
-    for (;; chunkSize *= 2)
+    int *data = (int*)malloc(size*sizeof(int));
+    memcpy(data, array, size * sizeof(int));
+    int *temp;
+    int a, b, m, halfChunk;
+    
+    do
     {
+        chunkSize *= 2;
         for (a = 0; a < size; a += chunkSize)
         {
-            b = a + chunkSize;
-            m = (b - a) / 2 + a;
-            if (m >= size) break;
+            halfChunk = chunkSize / 2;
+            m = a + halfChunk;
+            if (m >= size)
+            {
+                memcpy(buffer+a, data+a, (size - a) * sizeof(int));
+                break;
+            }
+            b = m + halfChunk;
             if (b > size) b = size;
 
-            l = a;
-            r = m;
-            for (i = a; i < b; i++)
+            mergeArrays(data, buffer, a, m, b);
+        }
+
+        temp = buffer;
+        buffer = data;
+        data = temp;
+    }
+    while (chunkSize < size);
+
+    memcpy(array, data, size * sizeof(int));
+    free(buffer);
+    free(data);
+}
+
+__host__ __device__ void mergeArrays(int *data, int *buffer, int a, int m, int b)
+{
+    int l, r, i;
+    l = a;
+    r = m;
+    for (i = a; i < b; i++)
+    {
+        if (data[l] < data[r])
+        {
+            buffer[i] = data[l];
+            l++;
+            if (l == m)
             {
-                if (data[l] < data[r])
+                while (r < b)
                 {
-                    buffer[i] = data[l];
-                    l++;
-                    if (l == m)
-                    {
-                        while (r < b)
-                        {
-                            i++;
-                            buffer[i] = data[r];
-                            r++;
-                        }
-                        break;
-                    }
-                }
-                else
-                {
+                    i++;
                     buffer[i] = data[r];
                     r++;
-                    if (r == b)
-                    {
-                        while (l < m)
-                        {
-                            i++;
-                            buffer[i] = data[l];
-                            l++;
-                        }
-                        break;
-                    }
                 }
+                break;
             }
-            memcpy(data+a, buffer+a, (b-a)*sizeof(int));
         }
-        if (chunkSize >= size) break;
+        else
+        {
+            buffer[i] = data[r];
+            r++;
+            if (r == b)
+            {
+                while (l < m)
+                {
+                    i++;
+                    buffer[i] = data[l];
+                    l++;
+                }
+                break;
+            }
+        }
     }
 }
 
@@ -294,9 +300,9 @@ int comparator(const void *p, const void *q)
 }
 
 // returns true if success
-int compareArrays(int *array1, int *array2)
+int compareArrays(int *array1, int *array2, int size)
 {
-    for (int i = 0; i < SIZE; i++) {
+    for (int i = 0; i < size; i++) {
         if (array1[i] != array2[i]) {
             printf("Broken at index:%d :(\n", i);
             return false;
