@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include "omp.h"
 #include "sort.cuh"
 
 #define SIZE 100000000
 #define STARTRANGE 0
-#define ENDRANGE 10000
+#define ENDRANGE 100
 
 #define THREADS_PER_BLOCK 256
 #define CHUNK_SIZE 16
@@ -17,7 +18,7 @@ int randNotSeeded = 1;
 int main()
 {
     // variables to time the sort
-    clock_t start, stop;
+    double start, stop;
 
     // the array to test our sort on
     int *data = getRandomArray(SIZE);
@@ -36,42 +37,37 @@ int main()
     int *data_qsort = (int*)malloc(SIZE*sizeof(int));
     memcpy(data_qsort, data, SIZE*sizeof(int));
 
-    start = clock();
+    // Run quick sort to have an array to check against for validation
+    start = omp_get_wtime();
     qsort(data_qsort, SIZE, sizeof(int), comparator);
-    stop = clock();
-    double qsort_time = ((double) (stop - start)) / CLOCKS_PER_SEC;
+    stop = omp_get_wtime();
+    double qsort_time = stop - start;
     
 
     // runs the program and times it
-    start = clock();
+    start = omp_get_wtime();
     mergeSort(data, SIZE);
-    stop = clock();
+    stop = omp_get_wtime();
     
 
-    // print the first 15 elements of the hopefully sorted data array
+    // print the first 20 elements of the hopefully sorted data array
     printf("\n");
-    if (SIZE > 15)
+    if (SIZE > 20)
     {
-        printArray(data_qsort, 15);
-    }
-    else
-    {
-        printArray(data_qsort, SIZE);
-    }
-
-    // prints the first 15 elements of the sorted array
-    if (SIZE > 15)
-    {
-        printArray(data, 15);
+        printArray(data_qsort, 20);
+        printArray(data, 20);
     }
     else
     {
         printArray(data, SIZE);
+        printArray(data_qsort, SIZE);
     }
+
+    // Validate
     compareArrays(data, data_qsort, SIZE);
 
     // print elapsed time
-    double elapsed = ((double) (stop - start)) / CLOCKS_PER_SEC;
+    double elapsed = stop - start;
     printf("Elapsed time: %.3fs\n", elapsed);
     printf("qsort time: %.3fs\n", qsort_time);
 
@@ -84,7 +80,6 @@ int main()
 // parallel merge sort using a GPU
 void mergeSort(int *h_array, int arraySize)
 {
-    cudaError_t err;
     // Make array in gpu memory
     int *d_array;
     cudaMalloc((void **)&d_array, arraySize * sizeof(int));
@@ -96,12 +91,6 @@ void mergeSort(int *h_array, int arraySize)
     int blocks = chunks / THREADS_PER_BLOCK + 1;
     gpu_sort<<<blocks, THREADS_PER_BLOCK>>>(d_array, arraySize, chunkSize);
     cudaDeviceSynchronize();
-    //cudaMemcpy(h_array, d_array, arraySize*sizeof(int), cudaMemcpyDeviceToHost);
-    //cudaFree(d_array);
-
-    // merge
-    //cpuMerge(h_array, arraySize, chunkSize);
-    
 
     // Make temp array for the merge
     int* d_temp_data;
@@ -109,20 +98,24 @@ void mergeSort(int *h_array, int arraySize)
     do
     {
         chunkSize *= 2;
-        chunks = arraySize / chunkSize + 1;
-        blocks = chunks / THREADS_PER_BLOCK + 1;
         if (chunkSize >= arraySize / 2048)
         {
+            // CPU does the merges
             cudaMemcpy(h_array, d_array, arraySize*sizeof(int), cudaMemcpyDeviceToHost);
-            cudaFree(d_array);
-            cpuMerge(h_array, arraySize, chunkSize);
+            cpuMerge(h_array, arraySize, chunkSize/2);
             break;
         }
+
+        // GPU does the merges
+        chunks = arraySize / chunkSize + 1;
+        blocks = chunks / THREADS_PER_BLOCK + 1;
         gpu_merge<<<blocks, THREADS_PER_BLOCK>>>(d_array, d_temp_data, arraySize, chunkSize);
-        err = cudaDeviceSynchronize();
-        printf("Merge: %s chunkSize: %d\n", cudaGetErrorString(err), chunkSize);
     }
-    while(chunkSize < arraySize);
+    while(chunkSize <= arraySize);
+    
+    // Free GPU memory
+    cudaFree(d_array);
+    cudaFree(d_temp_data);
 }
 
 // sorts a bunch of small chunks from one big array
@@ -150,13 +143,12 @@ __global__ void gpu_merge(int *d_array, int *d_temp_array, int arraySize, int ch
     int b = m + halfChunk;
     if (b > arraySize) b = arraySize;
 
+    // Watch out for integer overflow
+    if (a < 0 || m < 0 || b < 0) return;
+
     mergeArrays(d_array, d_temp_array, a, m, b);
 
-    for (int i = a; i < b; i++)
-    {
-        d_array[i] = d_temp_array[i];
-    }
-    //memcpy(d_array+a, d_temp_array+a, (b-a)*sizeof(int));
+    memcpy(d_array+a, d_temp_array+a, (b-a)*sizeof(int));
 }
 
 // serial cpu merge chunk size is the size of one sorted arrays
@@ -171,9 +163,10 @@ void cpuMerge(int *array, int size, int chunkSize)
     do
     {
         chunkSize *= 2;
+
+        halfChunk = chunkSize / 2;
         for (a = 0; a < size; a += chunkSize)
         {
-            halfChunk = chunkSize / 2;
             m = a + halfChunk;
             if (m >= size)
             {
@@ -193,8 +186,8 @@ void cpuMerge(int *array, int size, int chunkSize)
     while (chunkSize < size);
 
     memcpy(array, data, size * sizeof(int));
-    free(buffer);
     free(data);
+    free(buffer);
 }
 
 __host__ __device__ void mergeArrays(int *data, int *buffer, int a, int m, int b)
