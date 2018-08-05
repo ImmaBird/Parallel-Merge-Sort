@@ -5,4 +5,4 @@ COPY sort.c ./
 
 RUN make
 
-CMD ["mpirun", "-n", "1", "./sort.cx"]
+CMD ["mpirun", "-n", "8", "./sort.cx", "100000000", "0", "100"]

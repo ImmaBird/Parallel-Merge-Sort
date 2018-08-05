@@ -9,9 +9,13 @@ void mergeSort(int *input, int size);
 void recMergeSort(int *mergeBuffer, int *input, int a, int b);
 void selectionSort(int *array, int size);
 void insertionSort(int *input, int a, int b);
+void merge(int *array, int size, int *indexes, int numranks);
 void printArray(int *array, int size);
 int *getRandomArray(int size, int minValue, int maxValue);
+void mergeArrays(int *data, int *buffer, int a, int m, int b);
 int randInt(int a, int b);
+int compareArrays(int *array1, int *array2, int size);
+int comparator(const void *p, const void *q);
 
 // flag to determine if the prng has been seeded
 int randNotSeeded = 1;
@@ -57,6 +61,8 @@ int main(int argc, char *argv[])
         maxValue = atoi(argv[3]);
     }
 
+    
+
     // rank 0 sends arrayLength to everyone
     MPI_Bcast(&arrayLength, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -64,6 +70,22 @@ int main(int argc, char *argv[])
     if (rank == 0)
     {
         testArray = getRandomArray(arrayLength, minValue, maxValue);
+    }
+
+    // gets the right answer to compare too at the end
+    int *data_qsort;
+    if (rank == 0)
+    {
+        data_qsort = (int *)malloc(arrayLength * sizeof(int));
+        memcpy(data_qsort, testArray, arrayLength * sizeof(int));
+        mergeSort(data_qsort, arrayLength);
+    }
+
+    // start timer
+    double start;
+    if (rank == 0)
+    {
+        start = MPI_Wtime();
     }
 
     // everyone calculates sendCounts and displacements
@@ -97,9 +119,18 @@ int main(int argc, char *argv[])
     // perform merge sort on myChunk
     mergeSort(myChunk, chunkSize);
 
-    double start = MPI_Wtime();
-    mergeSort(testArray, arrayLength);
-    printf("Ran in %.12f seconds.\n", MPI_Wtime() - start);
+    // collect all the sorted arrays on rank 0
+    MPI_Gatherv(myChunk, chunkSize, MPI_INT, testArray, sendCounts, displacements, MPI_INT, 0, MPI_COMM_WORLD);
+
+    //printf("rank:%d chunksize:%d\n", rank, chunkSize);
+
+    // merge all the arrays together
+    if (rank == 0)
+    {
+        merge(testArray, arrayLength, displacements, numranks);
+        printf("Ran in %.12f seconds.\n", MPI_Wtime() - start);
+        compareArrays(testArray, data_qsort, arrayLength);
+    }
 
     MPI_Finalize();
 }
@@ -173,6 +204,78 @@ void recMergeSort(int *mergeBuffer, int *input, int a, int b)
     else
     {
         insertionSort(input, a, b);
+    }
+}
+
+// serial cpu merge chunk size is the size of one sorted arrays
+void merge(int *array, int size, int *indexes, int numranks)
+{
+    int *buffer = (int *)malloc(size * sizeof(int));
+    int *data = (int *)malloc(size * sizeof(int));
+    memcpy(data, array, size * sizeof(int));
+    int *temp;
+    int a, b, m, i, chunkSize, halfChunk;
+    for (chunkSize = 2; chunkSize <= numranks; chunkSize *= 2)
+    {
+        halfChunk = chunkSize / 2;
+        for (i = 0; i+halfChunk < numranks; i += chunkSize)
+        {
+            a = indexes[i];
+            m = indexes[i+halfChunk];
+            b = i+chunkSize != numranks? indexes[i+chunkSize] : size;
+            //printf("a:%d m:%d b:%d\n",i,i+halfChunk, i+chunkSize);
+            //printf("chunksize:%d i:%d a:%d m:%d b:%d\n",chunkSize, i, a, m, b);
+            //fflush(stdout);
+            mergeArrays(data, buffer, a, m, b);
+        }
+
+        temp = buffer;
+        buffer = data;
+        data = temp;
+    }
+
+    memcpy(array, data, size * sizeof(int));
+    free(buffer);
+    free(data); 
+}
+
+void mergeArrays(int *data, int *buffer, int a, int m, int b)
+{
+    int l, r, i;
+    l = a;
+    r = m;
+    for (i = a; i < b; i++)
+    {
+        if (data[l] < data[r])
+        {
+            buffer[i] = data[l];
+            l++;
+            if (l == m)
+            {
+                while (r < b)
+                {
+                    i++;
+                    buffer[i] = data[r];
+                    r++;
+                }
+                break;
+            }
+        }
+        else
+        {
+            buffer[i] = data[r];
+            r++;
+            if (r == b)
+            {
+                while (l < m)
+                {
+                    i++;
+                    buffer[i] = data[l];
+                    l++;
+                }
+                break;
+            }
+        }
     }
 }
 
@@ -256,4 +359,22 @@ int *getRandomArray(int size, int minValue, int maxValue)
 int randInt(int a, int b)
 {
     return (rand() % b) + a;
+}
+
+// returns true if success
+int compareArrays(int *array1, int *array2, int size)
+{
+    for (int i = 0; i < size; i++) {
+        if (array1[i] != array2[i]) {
+            printf("Broken at index:%d :(\n", i);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+// used by qsort for comparisons
+int comparator(const void *p, const void *q)
+{
+    return *(const int *)p - *(const int *)q;
 }
