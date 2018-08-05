@@ -19,7 +19,7 @@ CPROGS = sort.cx
 all: $(CPROGS)
 
 run: all
-	./$(CPROGS)
+	./$(CPROGS) 100000000 0 1000
 
 sort.cx:sort.o
 	$(LDC) $(LD_FLAGS) $< -o $@

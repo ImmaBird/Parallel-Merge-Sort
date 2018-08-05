@@ -33,7 +33,8 @@ int main(int argc, char *argv[])
 
     if (argc != 4)
     {
-        printf("USAGE: %s arrayLength minValue maxValue", argv[0]);
+        printf("USAGE: %s arrayLength minValue maxValue\n", argv[0]);
+        return 1;
     }
 
     arrayLength = atoi(argv[1]);

@@ -4,10 +4,6 @@
 #include "omp.h"
 #include "sort.cuh"
 
-#define SIZE 100000000
-#define STARTRANGE 0
-#define ENDRANGE 100
-
 #define THREADS_PER_BLOCK 256
 #define CHUNK_SIZE 16
 
@@ -15,56 +11,67 @@
 int randNotSeeded = 1;
 
 // tests the gpu merge sort
-int main()
+int main(int argc, char** argv)
 {
     // variables to time the sort
     double start, stop;
 
+    // Get cmdline args
+    if (argc != 4)
+    {
+        printf("USAGE: %s arrayLength minValue maxValue\n", argv[0]);
+        return 1;
+    }
+
+    int arrayLength = atoi(argv[1]);
+    int minValue = atoi(argv[2]);
+    int maxValue = atoi(argv[3]);
+
     // the array to test our sort on
-    int *data = getRandomArray(SIZE);
+    int *data = getRandomArray(arrayLength, minValue, maxValue);
 
     // print the first 15 elements of the data
-    if (SIZE > 15)
+    if (arrayLength > 15)
     {
         printArray(data, 15);
     }
     else
     {
-        printArray(data, SIZE);
+        printArray(data, arrayLength);
     }
 
     // gets the right answer to compare too at the end
-    int *data_qsort = (int*)malloc(SIZE*sizeof(int));
-    memcpy(data_qsort, data, SIZE*sizeof(int));
+    int *data_qsort = (int*)malloc(arrayLength*sizeof(int));
+    memcpy(data_qsort, data, arrayLength*sizeof(int));
 
     // Run quick sort to have an array to check against for validation
     start = omp_get_wtime();
-    qsort(data_qsort, SIZE, sizeof(int), comparator);
+    qsort(data_qsort, arrayLength, sizeof(int), comparator);
     stop = omp_get_wtime();
     double qsort_time = stop - start;
     
 
     // runs the program and times it
     start = omp_get_wtime();
-    mergeSort(data, SIZE);
+    mergeSort(data, arrayLength);
     stop = omp_get_wtime();
     
 
     // print the first 20 elements of the hopefully sorted data array
     printf("\n");
-    if (SIZE > 20)
+    if (arrayLength > 20)
     {
         printArray(data_qsort, 20);
         printArray(data, 20);
     }
     else
     {
-        printArray(data, SIZE);
-        printArray(data_qsort, SIZE);
+        printArray(data, arrayLength);
+        printArray(data_qsort, arrayLength);
     }
 
     // Validate
-    compareArrays(data, data_qsort, SIZE);
+    compareArrays(data, data_qsort, arrayLength);
 
     // print elapsed time
     double elapsed = stop - start;
@@ -190,6 +197,7 @@ void cpuMerge(int *array, int size, int chunkSize)
     free(buffer);
 }
 
+// Merge two sides of an array [a, m) and [m, b)
 __host__ __device__ void mergeArrays(int *data, int *buffer, int a, int m, int b)
 {
     int l, r, i;
@@ -263,7 +271,7 @@ __host__ __device__ void printArray(int *d_array, int size)
 }
 
 // gets an array filled with random values
-int *getRandomArray(int size)
+int *getRandomArray(int size, int startRange, int endRange)
 {
     // seed the prng if needed
     if (randNotSeeded)
@@ -275,7 +283,7 @@ int *getRandomArray(int size)
     int *array = (int *)malloc(size * sizeof(int));
     for (int i = 0; i < size; i++)
     {
-        array[i] = randInt(STARTRANGE, ENDRANGE);
+        array[i] = randInt(startRange, endRange);
     }
     return array;
 }
