@@ -2,8 +2,16 @@ CC = nvcc
 LDC = nvcc
 RM = /bin/rm
 
-FLAGS =
-LD_FLAGS =
+OS := $(shell uname)
+
+ifeq ($(OS), Darwin)
+	# clang needs extra flags for omp
+	FLAGS = -Xlinker -fopenmp
+	LD_FLAGS = -lomp
+else
+	FLAGS = -fopenmp
+	LD_FLAGS = -fopenmp
+endif
 
 CPROGS = sort.cx
 
@@ -11,7 +19,7 @@ CPROGS = sort.cx
 all: $(CPROGS)
 
 run: all
-	./$(CPROGS)
+	./$(CPROGS) 100000000 0 1000
 
 sort.cx:sort.o
 	$(LDC) $(LD_FLAGS) $< -o $@
