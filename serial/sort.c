@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
     mergeSort(testArray, arrayLength);
     stop = omp_get_wtime();
     double duration = ((double)stop-start);
-    printf("Ran in %.4f seconds.\n", duration);
+    printf("%d,%.5f\n", arrayLength, duration);
     if(arrayLength < 20) printArray(testArray, arrayLength);
     if(isSortedArray(testArray, 0, arrayLength) == 1)
         printf("Broken :(\n");

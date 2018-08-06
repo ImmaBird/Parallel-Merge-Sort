@@ -56,7 +56,7 @@ int main(int argc, char *argv[])
     #pragma omp single
     num_threads = omp_get_num_threads();
     double duration = ((double)stop - start);
-    printf("Threads: %d, Ran in %.4f seconds.\n", num_threads, duration);
+    printf("%d,%d,%.5f\n", num_threads, arrayLength, duration);
     if (arrayLength <= 20)
         printArray(testArray, arrayLength);
 
