@@ -93,6 +93,7 @@ void mergeSort(int *h_array, int arraySize)
         chunks = arraySize / chunkSize + 1;
         blocks = chunks / THREADS_PER_BLOCK + 1;
         gpu_merge<<<blocks, THREADS_PER_BLOCK>>>(d_array, d_temp_data, arraySize, chunkSize);
+        cudaDeviceSynchronize();
     }
     while(chunkSize <= arraySize);
     
