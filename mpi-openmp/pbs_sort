@@ -1,0 +1,11 @@
+#!/bin/bash
+#PBS -l nodes=12:ppn=12
+#PBS -l walltime=00:30:00
+#PBS -q batch
+#PBS -N mpi
+#PBS -j oe
+
+cd /home/rawsonb/final/mpi-openmp
+for i in `seq 1 12`; do
+    mpiexec -np $i --map-by ppr:1:node --hostfile $PBS_NODEFILE ./sort.cx 40000000 0 10000
+done

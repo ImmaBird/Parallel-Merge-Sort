@@ -7,3 +7,6 @@ qsub openmp/pbs_sort
 
 make -C mpi/
 qsub mpi/pbs_sort
+
+make -C mpi-openmp/
+qsub mpi-openmp/pbs_sort

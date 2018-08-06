@@ -2,16 +2,8 @@ CC = nvcc
 LDC = nvcc
 RM = /bin/rm
 
-OS := $(shell uname)
-
-ifeq ($(OS), Darwin)
-	# clang needs extra flags for omp
-	FLAGS = -Xlinker -fopenmp
-	LD_FLAGS = -lomp
-else
-	FLAGS = -fopenmp
-	LD_FLAGS = -fopenmp
-endif
+FLAGS =
+LD_FLAGS =
 
 CPROGS = sort.cx
 

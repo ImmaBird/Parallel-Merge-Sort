@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include "omp.h"
 #include "sort.cuh"
 
 #define THREADS_PER_BLOCK 256
@@ -42,15 +41,15 @@ int main(int argc, char** argv)
     
 
     // runs the program and times it
-    start = omp_get_wtime();
+    start = clock();
     mergeSort(data, arrayLength);
-    stop = omp_get_wtime();
+    stop = clock();
 
     // Validate
     // compareArrays(data, data_qsort, arrayLength);
 
     // print elapsed time
-    double elapsed = stop - start;
+    double elapsed = (stop - start) / CLOCKS_PER_SEC;
     printf("%d, %.5f\n", arrayLength, elapsed);
     // printf("qsort time: %.3fs\n", qsort_time);
 
@@ -81,7 +80,9 @@ void mergeSort(int *h_array, int arraySize)
     do
     {
         chunkSize *= 2;
-        if (chunkSize >= arraySize / 2048)
+        chunks = arraySize / chunkSize + 1;
+        blocks = chunks / THREADS_PER_BLOCK + 1;
+        if (blocks < 8)
         {
             // CPU does the merges
             cudaMemcpy(h_array, d_array, arraySize*sizeof(int), cudaMemcpyDeviceToHost);
@@ -90,8 +91,6 @@ void mergeSort(int *h_array, int arraySize)
         }
 
         // GPU does the merges
-        chunks = arraySize / chunkSize + 1;
-        blocks = chunks / THREADS_PER_BLOCK + 1;
         gpu_merge<<<blocks, THREADS_PER_BLOCK>>>(d_array, d_temp_data, arraySize, chunkSize);
         cudaDeviceSynchronize();
     }

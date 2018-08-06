@@ -18,5 +18,5 @@ cluster-run:
 	qsub pbs_sort
 
 docker-run:
-	docker build -t parallel-sort-mpi:latest .
-	docker run --rm parallel-sort-mpi:latest
+	docker build -t parallel-sort-mpi-openmp:latest .
+	docker run --rm parallel-sort-mpi-openmp:latest
