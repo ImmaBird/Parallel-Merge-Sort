@@ -1,9 +1,11 @@
 #!/bin/bash
 #PBS -l nodes=1:ppn=12
-#PBS -l walltime=00:05:00
+#PBS -l walltime=00:30:00
 #PBS -q batch
-#PBS -N project
+#PBS -N serial
 #PBS -j oe
 
-cd /home/mellena1/Parallel_Sort/serial
-./sort.cx 200000000 0 100
+cd /home/rawsonb/final/serial
+for i in `seq 10000000 10000000 100000000`; do
+    ./sort.cx $i 0 10000
+done

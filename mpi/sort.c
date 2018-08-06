@@ -61,7 +61,12 @@ int main(int argc, char *argv[])
         maxValue = atoi(argv[3]);
     }
 
-    
+    // start timer
+    double start, end;
+    if (rank == 0)
+    {
+        start = MPI_Wtime();
+    }
 
     // rank 0 sends arrayLength to everyone
     MPI_Bcast(&arrayLength, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -73,20 +78,13 @@ int main(int argc, char *argv[])
     }
 
     // gets the right answer to compare too at the end
-    int *data_qsort;
-    if (rank == 0)
-    {
-        data_qsort = (int *)malloc(arrayLength * sizeof(int));
-        memcpy(data_qsort, testArray, arrayLength * sizeof(int));
-        mergeSort(data_qsort, arrayLength);
-    }
-
-    // start timer
-    double start;
-    if (rank == 0)
-    {
-        start = MPI_Wtime();
-    }
+    // int *data_qsort;
+    // if (rank == 0)
+    // {
+    //     data_qsort = (int *)malloc(arrayLength * sizeof(int));
+    //     memcpy(data_qsort, testArray, arrayLength * sizeof(int));
+    //     mergeSort(data_qsort, arrayLength);
+    // }    
 
     // everyone calculates sendCounts and displacements
     sendCounts = (int *)malloc(numranks * sizeof(sendCounts));
@@ -128,8 +126,9 @@ int main(int argc, char *argv[])
     if (rank == 0)
     {
         merge(testArray, arrayLength, displacements, numranks);
-        printf("Ran in %.12f seconds.\n", MPI_Wtime() - start);
-        compareArrays(testArray, data_qsort, arrayLength);
+        end = MPI_Wtime();
+        printf("%d,%d,%.5f\n", numranks, arrayLength, end - start);
+        // compareArrays(testArray, data_qsort, arrayLength);
     }
 
     MPI_Finalize();
