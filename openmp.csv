@@ -1,12 +1,12 @@
-Threads: 1, Ran in 7.4446 seconds.
-Threads: 2, Ran in 3.9505 seconds.
-Threads: 3, Ran in 3.8653 seconds.
-Threads: 4, Ran in 3.8660 seconds.
-Threads: 5, Ran in 4.0821 seconds.
-Threads: 6, Ran in 2.1624 seconds.
-Threads: 7, Ran in 2.9739 seconds.
-Threads: 8, Ran in 2.1563 seconds.
-Threads: 9, Ran in 2.1965 seconds.
-Threads: 10, Ran in 2.3775 seconds.
-Threads: 11, Ran in 2.5961 seconds.
-Threads: 12, Ran in 2.2235 seconds.
+1,40000000,8.38838
+2,40000000,3.86568
+3,40000000,3.87256
+4,40000000,3.86869
+5,40000000,2.17812
+6,40000000,2.16846
+7,40000000,2.17569
+8,40000000,2.66025
+9,40000000,2.20217
+10,40000000,1.85021
+11,40000000,2.16050
+12,40000000,2.27091

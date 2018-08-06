@@ -377,3 +377,39 @@ int comparator(const void *p, const void *q)
 {
     return *(const int *)p - *(const int *)q;
 }
+
+void mergeSort(int *input, int size)
+{
+    int *mergeBuffer = (int *)malloc(size * sizeof(int));
+    #pragma omp parallel
+    #pragma omp single
+    recMergeSortOmp(mergeBuffer, input, 0, size, omp_get_num_threads());
+    free(mergeBuffer);
+}
+
+void recMergeSortOmp(int *mergeBuffer, int *input, int a, int b, int threads)
+{
+    int size = b - a; // the number of elements within this range
+    if (threads == 1)
+    {
+        recMergeSortSerial(mergeBuffer, input, a, b);
+    }
+    else
+    {
+        // halve
+        int m = size / 2 + a;  // the midpoint of the range the larger half goes to the right half
+        
+        #pragma omp task
+        recMergeSort(mergeBuffer, input, a, m, threads/2); // left half
+        #pragma omp task
+        recMergeSort(mergeBuffer, input, m, b, threads-threads/2); // right half
+        
+        #pragma omp taskwait
+
+        // merge
+        int l = a; // left begining index
+        int r = m; // right begining index
+
+        mergeArrays(mergeBuffer, input, a, b, l, r);
+    }
+}
