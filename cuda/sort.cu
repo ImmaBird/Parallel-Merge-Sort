@@ -30,57 +30,33 @@ int main(int argc, char** argv)
     // the array to test our sort on
     int *data = getRandomArray(arrayLength, minValue, maxValue);
 
-    // print the first 15 elements of the data
-    if (arrayLength > 15)
-    {
-        printArray(data, 15);
-    }
-    else
-    {
-        printArray(data, arrayLength);
-    }
-
     // gets the right answer to compare too at the end
-    int *data_qsort = (int*)malloc(arrayLength*sizeof(int));
-    memcpy(data_qsort, data, arrayLength*sizeof(int));
+    // int *data_qsort = (int*)malloc(arrayLength*sizeof(int));
+    // memcpy(data_qsort, data, arrayLength*sizeof(int));
 
     // Run quick sort to have an array to check against for validation
-    start = omp_get_wtime();
-    qsort(data_qsort, arrayLength, sizeof(int), comparator);
-    stop = omp_get_wtime();
-    double qsort_time = stop - start;
+    // start = omp_get_wtime();
+    // qsort(data_qsort, arrayLength, sizeof(int), comparator);
+    // stop = omp_get_wtime();
+    // double qsort_time = stop - start;
     
 
     // runs the program and times it
     start = omp_get_wtime();
     mergeSort(data, arrayLength);
     stop = omp_get_wtime();
-    
-
-    // print the first 20 elements of the hopefully sorted data array
-    printf("\n");
-    if (arrayLength > 20)
-    {
-        printArray(data_qsort, 20);
-        printArray(data, 20);
-    }
-    else
-    {
-        printArray(data, arrayLength);
-        printArray(data_qsort, arrayLength);
-    }
 
     // Validate
-    compareArrays(data, data_qsort, arrayLength);
+    // compareArrays(data, data_qsort, arrayLength);
 
     // print elapsed time
     double elapsed = stop - start;
-    printf("Elapsed time: %.3fs\n", elapsed);
-    printf("qsort time: %.3fs\n", qsort_time);
+    printf("%d, %.5f\n", arrayLength, elapsed);
+    // printf("qsort time: %.3fs\n", qsort_time);
 
     // Cleanup
     free(data);
-    free(data_qsort);
+    // free(data_qsort);
     return 0;
 }
 
