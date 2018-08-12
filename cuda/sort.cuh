@@ -1,7 +1,7 @@
 #ifndef SORT
 #define SORT
 
-void mergeSort(int *array, int size);
+void mergeSort(int *h_array, int arraySize, double *networkTime);
 __global__ void gpu_sort(int *d_array, int arraySize, int chunkSize);
 __global__ void gpu_merge(int *d_array, int *d_temp_array, int arraySize, int chunkSize);
 void cpuMerge(int *data, int size, int chunkSize);

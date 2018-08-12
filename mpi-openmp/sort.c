@@ -139,9 +139,12 @@ int main(int argc, char *argv[])
 void mergeSort(int *input, int size)
 {
     int *mergeBuffer = (int *)malloc(size * sizeof(int));
+    omp_set_nested(1);
+    int threads;
     #pragma omp parallel
-    #pragma omp single
-    recMergeSort(mergeBuffer, input, 0, size, omp_get_num_threads());
+    #pragma omp master
+    threads = omp_get_num_threads();
+    recMergeSort(mergeBuffer, input, 0, size, threads);
     free(mergeBuffer);
 }
 
@@ -157,12 +160,13 @@ void recMergeSort(int *mergeBuffer, int *input, int a, int b, int threads)
         // halve
         int m = size / 2 + a;  // the midpoint of the range the larger half goes to the right half
         
-        #pragma omp task
-        recMergeSort(mergeBuffer, input, a, m, threads/2); // left half
-        #pragma omp task
-        recMergeSort(mergeBuffer, input, m, b, threads-threads/2); // right half
-        
-        #pragma omp taskwait
+        #pragma omp parallel sections num_threads(2)
+        {
+            #pragma omp section
+            recMergeSort(mergeBuffer, input, a, m, threads/2); // left half
+            #pragma omp section
+            recMergeSort(mergeBuffer, input, m, b, threads-threads/2); // right half
+        }
 
         // merge
         int l = a; // left begining index

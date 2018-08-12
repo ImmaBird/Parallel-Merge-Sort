@@ -13,7 +13,7 @@ int randNotSeeded = 1;
 int main(int argc, char** argv)
 {
     // variables to time the sort
-    double start, stop;
+    clock_t start, stop;
 
     // Get cmdline args
     if (argc != 4)
@@ -41,16 +41,17 @@ int main(int argc, char** argv)
     
 
     // runs the program and times it
+    double networkTime = 0;
     start = clock();
-    mergeSort(data, arrayLength);
+    mergeSort(data, arrayLength, &networkTime);
     stop = clock();
 
     // Validate
     // compareArrays(data, data_qsort, arrayLength);
 
     // print elapsed time
-    double elapsed = (stop - start) / CLOCKS_PER_SEC;
-    printf("%d, %.5f\n", arrayLength, elapsed);
+    double elapsed = ((double)(stop - start)) / CLOCKS_PER_SEC;
+    printf("%d, %.5f, %.5f\n", arrayLength, elapsed, networkTime);
     // printf("qsort time: %.3fs\n", qsort_time);
 
     // Cleanup
@@ -60,12 +61,16 @@ int main(int argc, char** argv)
 }
 
 // parallel merge sort using a GPU
-void mergeSort(int *h_array, int arraySize)
+void mergeSort(int *h_array, int arraySize, double *networkTime)
 {
+    clock_t networkStart, networkStop;
     // Make array in gpu memory
     int *d_array;
     cudaMalloc((void **)&d_array, arraySize * sizeof(int));
+    networkStart = clock();
     cudaMemcpy(d_array, h_array, arraySize * sizeof(int), cudaMemcpyHostToDevice);
+    networkStop = clock();
+    (*networkTime) += ((double)(networkStop - networkStart)) / CLOCKS_PER_SEC;
 
     // sort
     int chunkSize = CHUNK_SIZE;
@@ -85,7 +90,10 @@ void mergeSort(int *h_array, int arraySize)
         if (blocks < 8)
         {
             // CPU does the merges
+            networkStart = clock();
             cudaMemcpy(h_array, d_array, arraySize*sizeof(int), cudaMemcpyDeviceToHost);
+            networkStop = clock();
+            (*networkTime) += ((double)(networkStop - networkStart)) / CLOCKS_PER_SEC;
             cpuMerge(h_array, arraySize, chunkSize/2);
             break;
         }
