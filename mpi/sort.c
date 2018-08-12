@@ -69,7 +69,20 @@ int main(int argc, char *argv[])
     }
 
     // rank 0 sends arrayLength to everyone
+    double startNetwork, endNetwork, elapsedNetwork;
+    if (rank == 0)
+    {
+        elapsedNetwork = 0;
+        startNetwork = MPI_Wtime();
+    }
+
     MPI_Bcast(&arrayLength, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (rank == 0)
+    {
+        endNetwork = MPI_Wtime();
+        elapsedNetwork += endNetwork - startNetwork;
+    }
 
     // rank 0 creates the random number array
     if (rank == 0)
@@ -87,6 +100,11 @@ int main(int argc, char *argv[])
     // }    
 
     // everyone calculates sendCounts and displacements
+    if (rank == 0)
+    {
+        startNetwork = MPI_Wtime();
+    }
+
     sendCounts = (int *)malloc(numranks * sizeof(sendCounts));
     displacements = (int *)malloc(numranks * sizeof(displacements));
     for (int i = 0; i < numranks; i++)
@@ -114,11 +132,28 @@ int main(int argc, char *argv[])
     // rank 0 sends chunks of values to everyone
     MPI_Scatterv(testArray, sendCounts, displacements, MPI_INT, myChunk, chunkSize, MPI_INT, 0, MPI_COMM_WORLD);
 
+    if (rank == 0)
+    {
+        endNetwork = MPI_Wtime();
+        elapsedNetwork += endNetwork - startNetwork;
+    }
+
     // perform merge sort on myChunk
     mergeSort(myChunk, chunkSize);
 
     // collect all the sorted arrays on rank 0
+    if (rank == 0)
+    {
+        startNetwork = MPI_Wtime();
+    }
+
     MPI_Gatherv(myChunk, chunkSize, MPI_INT, testArray, sendCounts, displacements, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (rank == 0)
+    {
+        endNetwork = MPI_Wtime();
+        elapsedNetwork += endNetwork - startNetwork;
+    }
 
     //printf("rank:%d chunksize:%d\n", rank, chunkSize);
 
@@ -127,7 +162,7 @@ int main(int argc, char *argv[])
     {
         merge(testArray, arrayLength, displacements, numranks);
         end = MPI_Wtime();
-        printf("%d,%d,%.5f\n", numranks, arrayLength, end - start);
+        printf("%d,%d,%.5f,%.5f\n", numranks, arrayLength, end - start, elapsedNetwork);
         // compareArrays(testArray, data_qsort, arrayLength);
     }
 
@@ -376,40 +411,4 @@ int compareArrays(int *array1, int *array2, int size)
 int comparator(const void *p, const void *q)
 {
     return *(const int *)p - *(const int *)q;
-}
-
-void mergeSort(int *input, int size)
-{
-    int *mergeBuffer = (int *)malloc(size * sizeof(int));
-    #pragma omp parallel
-    #pragma omp single
-    recMergeSortOmp(mergeBuffer, input, 0, size, omp_get_num_threads());
-    free(mergeBuffer);
-}
-
-void recMergeSortOmp(int *mergeBuffer, int *input, int a, int b, int threads)
-{
-    int size = b - a; // the number of elements within this range
-    if (threads == 1)
-    {
-        recMergeSortSerial(mergeBuffer, input, a, b);
-    }
-    else
-    {
-        // halve
-        int m = size / 2 + a;  // the midpoint of the range the larger half goes to the right half
-        
-        #pragma omp task
-        recMergeSort(mergeBuffer, input, a, m, threads/2); // left half
-        #pragma omp task
-        recMergeSort(mergeBuffer, input, m, b, threads-threads/2); // right half
-        
-        #pragma omp taskwait
-
-        // merge
-        int l = a; // left begining index
-        int r = m; // right begining index
-
-        mergeArrays(mergeBuffer, input, a, b, l, r);
-    }
 }
